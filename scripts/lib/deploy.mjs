@@ -8,6 +8,7 @@ import { Client as FtpClient } from 'basic-ftp';
 import SftpClient from 'ssh2-sftp-client';
 import { loadEnvFile } from '../../config/env.mjs';
 import { projectRoot, envVaultPath, resolveVaultPath } from '../../config/vault.mjs';
+import { createUploadProgress, humanBytes } from './upload-progress.mjs';
 
 /**
  * @typedef {'ftps' | 'sftp'} DeployProtocol
@@ -208,6 +209,26 @@ function listLocalFiles(distDir) {
 }
 
 /**
+ * Sums the byte size of every file the upload will transfer (mirrors the upload filter).
+ * @param {string} distDir
+ * @returns {number}
+ */
+function sumLocalBytes(distDir) {
+    let total = 0;
+    /** @param {string} dir */
+    const walk = (dir) => {
+        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+            if (isHidden(entry.name)) continue;
+            const abs = path.join(dir, entry.name);
+            if (entry.isDirectory()) walk(abs);
+            else if (entry.isFile()) total += fs.statSync(abs).size;
+        }
+    };
+    walk(distDir);
+    return total;
+}
+
+/**
  * @param {string} question
  * @returns {Promise<boolean>}
  */
@@ -291,9 +312,22 @@ async function uploadDistSftp(config, distDir, mirror, askConfirm) {
         }
 
         console.log(`\n🚀 Uploading dist/ → sftp://${config.host}:${config.port}${config.remotePath} …`);
-        await sftp.uploadDir(distDir, config.remotePath, {
-            filter: (itemPath) => !isHidden(path.basename(itemPath)),
-        });
+        const progress = createUploadProgress({ totalFiles: localFiles.size });
+        let uploaded = 0;
+        /** @param {{ source: string }} info */
+        const onUpload = (info) => {
+            uploaded += 1;
+            progress.onFile(uploaded, path.basename(info.source));
+        };
+        sftp.on('upload', onUpload);
+        try {
+            await sftp.uploadDir(distDir, config.remotePath, {
+                filter: (itemPath) => !isHidden(path.basename(itemPath)),
+            });
+        } finally {
+            sftp.removeListener('upload', onUpload);
+            progress.finish();
+        }
         console.log('✅ Upload complete.');
 
         if (mirrorActive) {
@@ -467,13 +501,23 @@ async function uploadDistFtps(config, distDir, mirror, askConfirm) {
                 ? loginDir.replace(/\/+$/, '') || '/'
                 : `${loginDir.replace(/\/+$/, '')}${remoteBase}`;
 
+        const totalBytes = sumLocalBytes(distDir);
         const doUpload = async () => {
-            console.log(`\n🚀 Uploading dist/ → ftps://${config.host}:${config.port} (${absoluteTarget}) …`);
+            console.log(
+                `\n🚀 Uploading dist/ (${humanBytes(totalBytes)}) → ftps://${config.host}:${config.port} (${absoluteTarget}) …`,
+            );
             if (remoteBase !== '/') await client.ensureDir(remoteBase);
             await client.cd(remoteBase);
-            await client.uploadFromDir(distDir, remoteBase, {
-                filter: (name) => !isHidden(name),
-            });
+            const progress = createUploadProgress({ totalBytes });
+            client.trackProgress((info) => progress.onBytes(info.bytesOverall, info.name));
+            try {
+                await client.uploadFromDir(distDir, remoteBase, {
+                    filter: (name) => !isHidden(name),
+                });
+            } finally {
+                client.trackProgress();
+                progress.finish();
+            }
             console.log('✅ Upload complete.');
         };
 

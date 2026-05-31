@@ -95,6 +95,8 @@ if the site is local-only during development.
 | `npm run publish` | Git sync (optional) → build → remote upload (see [Publishing](#publishing)) |
 | `npm run deploy` | Build + remote upload (no git) |
 | `npm run upload` | Remote upload only (existing `dist/`, no git, no build) |
+| `npm run auth:install` | Protect the live site with Apache Basic Auth (see [Private site](#private-site-basic-auth)) |
+| `npm run auth:remove` | Remove Basic Auth (make the site public again) |
 
 ## Publishing
 
@@ -200,6 +202,9 @@ Proceed with upload? (y/N)
 The prompt appears when running in a terminal. Skip it with `--yes` (or `-y`) for non-interactive runs;
 in a non-TTY context (CI) the upload proceeds without prompting.
 
+During the transfer the engine renders a single-line **progress bar** (by transferred bytes over FTPS,
+by file count over SFTP). It is shown only in an interactive terminal; piped/CI logs stay clean.
+
 ### Mirror mode (default)
 
 By default, every upload **mirrors** the remote directory: after uploading, remote files that no longer
@@ -243,6 +248,44 @@ npm run deploy  →  validate config → build → upload + mirror
 npm run upload  →  validate config → upload + mirror (dist/ must already exist)
 ```
 
+### Private site (Basic Auth)
+
+Make the deployed site private with Apache Basic Auth. The engine generates a `.htpasswd`
+(Apache `$apr1$` MD5 hash, salted) and a `.htaccess`, then uploads both to the site root
+over the same `DEPLOY_*` connection.
+
+Add to the **vault** `.env`:
+
+```env
+AUTH_USER=lecteur
+AUTH_PASSWORD=a-strong-password
+# Real absolute server path of the site root (what Apache sees). On a chrooted FTP
+# account, "/" maps to this path — copy it from cPanel / your host:
+AUTH_SERVER_ROOT=/home/USER/your-site-folder
+# AUTH_HTPASSWD_NAME=.htpasswd   # filename at the site root (must stay hidden)
+AUTH_REALM=IA On-Premise          # text in the browser login popup
+```
+
+```bash
+npm run auth:install                 # generate + upload .htpasswd then .htaccess
+npm run auth:remove                  # delete .htaccess and .htpasswd
+npm run auth:remove -- --keep-htpasswd   # delete only .htaccess
+npm run auth:remove -- --yes             # skip the confirmation prompt
+```
+
+After install, the site returns **401** without credentials and **200** with the
+`AUTH_USER` / `AUTH_PASSWORD` pair.
+
+Notes:
+
+- The reader credentials are **independent** of the FTP account (`DEPLOY_USER`) — least privilege.
+- `.htpasswd` lives at the site root inside the chroot (so FTP can write it), but is a dotfile:
+  never served by Apache, never uploaded or deleted by `deploy` / `upload` mirroring. The generated
+  `.htaccess` also denies any `^\.ht` file.
+- `AUTH_SERVER_ROOT` is the **real absolute path** used for `AuthUserFile` (Apache reads the real
+  filesystem, not the chroot view), distinct from `DEPLOY_REMOTE_PATH=/` used by FTP.
+- Files are streamed from memory — the hashed password is never written to local disk.
+
 ### Notes & limitations
 
 - **Mirror is the default** (remote files absent locally are deleted). Use `--no-mirror` for additive
@@ -251,6 +294,35 @@ npm run upload  →  validate config → upload + mirror (dist/ must already exi
   over FTPS, `DEPLOY_PROTECT` (default `cgi-bin`) adds extra protected top-level entries.
 - **Public URL:** set `url` in the vault's `site.config.json` (not in the engine). Enables the sitemap and
   absolute canonical URLs at build time.
+
+## Build analysis & bundle size
+
+`npm run build` prints a Vite warning: *"Some chunks are larger than 500 kB"*. This is expected and
+**safe to ignore**. The only chunks above 500 kB are Mermaid's own bundles:
+
+| Chunk | ~Size | Loaded when |
+|-------|-------|-------------|
+| `mermaid.core.*` | ~590 kB | a page contains any Mermaid diagram |
+| `wardley-*` | ~600 kB | a page contains a Wardley map |
+| `cytoscape.esm.*` | ~430 kB | architecture / cose-bilkent layouts |
+| `katex.*` | ~255 kB | math rendering |
+
+These are **lazily imported client-side** by `astro-mermaid` — they are fetched only on pages that
+actually render that diagram type, so they never weigh on the initial page load. They are also already
+optimally code-split per diagram type; grouping them with `manualChunks` would merge separate lazy
+bundles into one eager bundle (worse), and raising `chunkSizeWarningLimit` would only hide the message.
+We intentionally do neither.
+
+To inspect what goes into each chunk, run an **opt-in** analysis build (writes `dist/stats.html`, never
+part of a normal build or deploy):
+
+```bash
+# bash / zsh
+ANALYZE=true npm run build
+
+# PowerShell
+$env:ANALYZE="true"; npm run build; Remove-Item Env:\ANALYZE
+```
 
 ## Built-in modules
 
