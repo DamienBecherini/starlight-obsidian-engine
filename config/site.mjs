@@ -22,6 +22,7 @@ const defaultLocales = {
 /**
  * @typedef {Object} SiteConfig
  * @property {string} title
+ * @property {string} [url] Public canonical URL (Astro `site`, sitemap, absolute links).
  * @property {string} [defaultLocale]
  * @property {import('@astrojs/starlight/types').StarlightUserConfig['locales']} [locales]
  * @property {import('@astrojs/starlight/types').StarlightUserConfig['sidebar']} [sidebar]
@@ -30,7 +31,7 @@ const defaultLocales = {
 
 /**
  * Loads site.config.json from the vault root.
- * @returns {Required<Pick<SiteConfig, 'title' | 'defaultLocale' | 'locales' | 'sidebar'>> & Pick<SiteConfig, 'social'>}
+ * @returns {Required<Pick<SiteConfig, 'title' | 'defaultLocale' | 'locales' | 'sidebar'>> & Pick<SiteConfig, 'url' | 'social'>}
  */
 export function loadSiteConfig() {
     const vaultPath = resolveVaultPath();
@@ -56,6 +57,7 @@ export function loadSiteConfig() {
         console.log(`🎯 Site configuration loaded from ${configPath}`);
         return {
             title: parsed.title ?? 'Obsidian Vault Site',
+            url: parsed.url?.replace(/\/+$/, '') || undefined,
             defaultLocale: parsed.defaultLocale ?? 'root',
             locales: parsed.locales ?? defaultLocales,
             sidebar: parsed.sidebar ?? defaultSidebar,
