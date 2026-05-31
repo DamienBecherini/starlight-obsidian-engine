@@ -34,7 +34,7 @@ repositories**: edit your notes in Obsidian, let the engine publish them.
 ```
 Webdev/
 ├─ starlight-obsidian-engine/   ← this repo (engine, public)
-│  └─ src/content/docs   ──────┐  (Windows junction / symlink)
+│  └─ src/content/docs   ────────┐  (Windows junction / symlink)
 └─ your-obsidian-vault/         ◄┘  ← Obsidian vault (content, private)
    ├─ site.config.json          (title, locales, sidebar, social)
    ├─ index.mdx
