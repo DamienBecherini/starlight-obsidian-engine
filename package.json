@@ -1,0 +1,30 @@
+{
+  "name": "starlight-obsidian-engine",
+  "type": "module",
+  "version": "0.0.1",
+  "scripts": {
+    "predev": "node scripts/ensure-vault.mjs",
+    "dev": "astro dev",
+    "start": "astro dev",
+    "prebuild": "node scripts/ensure-vault.mjs",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro",
+    "link:vault": "node scripts/link-vault.mjs"
+  },
+  "dependencies": {
+    "@astrojs/react": "^5.0.6",
+    "@astrojs/starlight": "^0.39.2",
+    "@types/react": "^19.2.15",
+    "@types/react-dom": "^19.2.3",
+    "astro": "^6.3.1",
+    "astro-mermaid": "^2.0.1",
+    "mermaid": "^11.15.0",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "rehype-external-links": "^3.0.0",
+    "remark-wiki-link": "^2.0.1",
+    "sharp": "^0.34.5",
+    "svg-pan-zoom": "^3.6.2"
+  }
+}

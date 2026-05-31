@@ -1,0 +1,32 @@
+# build output
+dist/
+# generated types
+.astro/
+
+.vscode/
+# Vault externe monté en junction sur src/content/docs (voir npm run link:vault).
+# Le contenu vit dans son propre dépôt (le vault Obsidian), pas ici.
+src/content/docs/
+
+# dependencies
+node_modules/
+
+# logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+build/
+
+
+# environment variables
+.env
+.env.production
+
+# macOS-specific files
+.DS_Store
+
+# IDE / outils locaux
+.cursor/
+config-concat-code.yaml
