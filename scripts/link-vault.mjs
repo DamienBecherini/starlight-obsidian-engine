@@ -1,8 +1,8 @@
 // @ts-check
 /**
- * Crée une junction (Windows) ou un symlink (Unix) : src/content/docs → VAULT_PATH.
- * Le chemin du vault est défini par VAULT_PATH (.env ou variable d'environnement).
- * Usage : npm run link:vault
+ * Creates a junction (Windows) or a symlink (Unix): src/content/docs → VAULT_PATH.
+ * The vault path is defined by VAULT_PATH (.env or environment variable).
+ * Usage: npm run link:vault
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -12,14 +12,14 @@ const linkPath = path.join(projectRoot, 'src/content/docs');
 const targetPath = envVaultPath();
 
 if (!targetPath) {
-    console.error('❌ VAULT_PATH non défini.');
-    console.error('   Renseignez-le dans .env, ex : VAULT_PATH=../mon-vault-obsidian');
+    console.error('❌ VAULT_PATH is not defined.');
+    console.error('   Set it in .env, e.g.: VAULT_PATH=../my-obsidian-vault');
     process.exit(1);
 }
 
 if (!fs.existsSync(targetPath)) {
-    console.error(`❌ Vault introuvable : ${targetPath}`);
-    console.error('   Vérifiez VAULT_PATH dans .env');
+    console.error(`❌ Vault not found: ${targetPath}`);
+    console.error('   Check VAULT_PATH in .env');
     process.exit(1);
 }
 
@@ -27,7 +27,7 @@ if (fs.existsSync(linkPath)) {
     const stat = fs.lstatSync(linkPath);
     if (stat.isSymbolicLink()) {
         fs.unlinkSync(linkPath);
-        console.log('ℹ️ Ancien symlink supprimé.');
+        console.log('ℹ️ Old symlink removed.');
     } else {
         const entries = fs.readdirSync(linkPath);
         const onlyPlaceholders = entries.every((e) =>
@@ -35,7 +35,7 @@ if (fs.existsSync(linkPath)) {
         );
         if (!onlyPlaceholders) {
             console.error(
-                `❌ ${linkPath} existe et contient du contenu. Migrez-le vers le vault avant de lier.`,
+                `❌ ${linkPath} exists and contains content. Move it into the vault before linking.`,
             );
             process.exit(1);
         }
@@ -51,5 +51,5 @@ if (process.platform === 'win32') {
     fs.symlinkSync(targetPath, linkPath, 'dir');
 }
 
-console.log(`✅ Liaison créée : ${linkPath} → ${targetPath}`);
-console.log('   Vous pouvez aussi utiliser VAULT_PATH sans symlink.');
+console.log(`✅ Link created: ${linkPath} → ${targetPath}`);
+console.log('   You can also use VAULT_PATH without a symlink.');

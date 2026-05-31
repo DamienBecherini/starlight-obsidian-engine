@@ -3,7 +3,7 @@ import { unified } from '@astrojs/markdown-remark';
 import remarkWikiLink from 'remark-wiki-link';
 import rehypeExternalLinks from 'rehype-external-links';
 
-/** Configuration du processeur Markdown (wiki links, liens externes). */
+/** Markdown processor configuration (wiki links, external links). */
 export const markdown = {
     processor: unified({
         remarkPlugins: [

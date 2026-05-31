@@ -4,14 +4,14 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-/** Racine du dépôt moteur (parent de config/). */
+/** Engine repository root (parent of config/). */
 export const projectRoot = path.resolve(__dirname, '..');
 
 const LINKED_DOCS = path.join(projectRoot, 'src/content/docs');
 
 /**
- * Charge .env dans process.env (sans dépendance) car Node ne le fait pas pour les
- * scripts predev/prebuild. Ne remplace jamais une variable déjà définie.
+ * Loads .env into process.env (no dependency) because Node does not do it for the
+ * predev/prebuild scripts. Never overrides an already-defined variable.
  */
 function loadEnvFile() {
     const envPath = path.join(projectRoot, '.env');
@@ -27,7 +27,7 @@ function loadEnvFile() {
 loadEnvFile();
 
 /**
- * Chemin absolu défini par VAULT_PATH (.env ou variable d'environnement), ou null.
+ * Absolute path defined by VAULT_PATH (.env or environment variable), or null.
  * @returns {string | null}
  */
 export function envVaultPath() {
@@ -37,8 +37,8 @@ export function envVaultPath() {
 }
 
 /**
- * Résout le chemin absolu du vault Obsidian.
- * Priorité : (1) junction/contenu sous src/content/docs → (2) VAULT_PATH → (3) fallback src/content/docs
+ * Resolves the absolute path of the Obsidian vault.
+ * Priority: (1) junction/content under src/content/docs → (2) VAULT_PATH → (3) fallback src/content/docs
  * @returns {string}
  */
 export function resolveVaultPath() {

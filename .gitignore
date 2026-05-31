@@ -4,8 +4,8 @@ dist/
 .astro/
 
 .vscode/
-# Vault externe monté en junction sur src/content/docs (voir npm run link:vault).
-# Le contenu vit dans son propre dépôt (le vault Obsidian), pas ici.
+# External vault mounted as a junction on src/content/docs (see npm run link:vault).
+# Content lives in its own repository (the Obsidian vault), not here.
 src/content/docs/
 
 # dependencies
@@ -27,6 +27,6 @@ build/
 # macOS-specific files
 .DS_Store
 
-# IDE / outils locaux
+# IDE / local tooling
 .cursor/
 config-concat-code.yaml

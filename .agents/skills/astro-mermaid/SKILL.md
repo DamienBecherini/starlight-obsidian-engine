@@ -1,6 +1,6 @@
 ---
 name: astro-mermaid
-description: Debugging and maintaining the client-side Mermaid pan/zoom/fullscreen enhancer in this repo (src/mermaid-enhancer/MermaidEnhancer.astro, built on svg-pan-zoom + astro-mermaid). Use when a Mermaid diagram misbehaves — zoom/pan not refreshing, blank/empty diagram after fullscreen exit, controls duplicated or missing, theme re-render wiping controls, or any svg-pan-zoom transform/viewBox glitch. Encodes hard-won gotchas so you don't have to re-investigate from scratch.
+description: Debugging and maintaining the client-side Mermaid pan/zoom/fullscreen enhancer in this repo (src/components/MermaidEnhancer.astro, built on svg-pan-zoom + astro-mermaid). Use when a Mermaid diagram misbehaves — zoom/pan not refreshing, blank/empty diagram after fullscreen exit, controls duplicated or missing, theme re-render wiping controls, or any svg-pan-zoom transform/viewBox glitch. Encodes hard-won gotchas so you don't have to re-investigate from scratch.
 license: MIT
 metadata:
   author: debug-session
@@ -11,7 +11,7 @@ metadata:
 
 # Astro Mermaid Enhancer — Debugging & Maintenance Skill
 
-Hard-won knowledge about `src/mermaid-enhancer/MermaidEnhancer.astro`, a client-side `<script>` that
+Hard-won knowledge about `src/components/MermaidEnhancer.astro`, a client-side `<script>` that
 progressively enhances build-time Mermaid SVGs (from `astro-mermaid`) with pan/zoom/fullscreen
 controls using the **`svg-pan-zoom`** library. Most bugs here come from a small set of recurring,
 non-obvious traps. Read this BEFORE re-investigating — it will save a long enquiry.
@@ -176,6 +176,6 @@ one-step transform lag observed in `onZoom` logs).
   fullscreen; large ones keep theirs.
 
 ## Key files
-- `src/mermaid-enhancer/MermaidEnhancer.astro` — the enhancer script (all logic).
-- `src/mermaid-enhancer/mermaid.css` — fullscreen sizing (`:fullscreen`), control styling, `is-small` rules.
-- Diagrams authored in markdown in the external vault (`VAULT_PATH`, e.g. `../ia-on-prem-vault-content`) via ```mermaid fences.
+- `src/components/MermaidEnhancer.astro` — the enhancer script (all logic).
+- `src/styles/mermaid.css` — fullscreen sizing (`:fullscreen`), control styling, `is-small` rules.
+- Diagrams authored in markdown in the external vault (`VAULT_PATH`, e.g. `../ia-on-prem-vault`) via ```mermaid fences.

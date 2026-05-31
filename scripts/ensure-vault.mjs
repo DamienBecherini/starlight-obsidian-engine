@@ -1,7 +1,7 @@
 // @ts-check
 /**
- * Vérifie que le vault est accessible avant dev/build.
- * Crée la junction si le vault sibling existe mais n'est pas encore lié.
+ * Checks that the vault is reachable before dev/build.
+ * Creates the junction if the sibling vault exists but is not linked yet.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -13,8 +13,8 @@ const targetVault = envVaultPath();
 const vaultPath = resolveVaultPath();
 
 if (!fs.existsSync(vaultPath)) {
-    console.warn(`⚠️ Vault introuvable : ${vaultPath}`);
-    console.warn('   Définissez VAULT_PATH dans .env ou exécutez : npm run link:vault');
+    console.warn(`⚠️ Vault not found: ${vaultPath}`);
+    console.warn('   Set VAULT_PATH in .env or run: npm run link:vault');
     process.exit(0);
 }
 
@@ -28,7 +28,7 @@ if (needsLink) {
     try {
         execSync('node scripts/link-vault.mjs', { cwd: projectRoot, stdio: 'inherit' });
     } catch {
-        console.warn('⚠️ Liaison vault automatique échouée. Exécutez : npm run link:vault');
+        console.warn('⚠️ Automatic vault linking failed. Run: npm run link:vault');
     }
 }
 
@@ -43,5 +43,5 @@ const hasMd = fs
     );
 
 if (!hasMd) {
-    console.warn(`⚠️ Aucun fichier .md/.mdx à la racine de ${vaultPath}`);
+    console.warn(`⚠️ No .md/.mdx file at the root of ${vaultPath}`);
 }

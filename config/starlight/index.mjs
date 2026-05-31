@@ -4,7 +4,7 @@ import { loadSiteConfig } from '../site.mjs';
 
 const site = loadSiteConfig();
 
-/** Intégration Starlight — identité et navigation chargées depuis le vault (site.config.json). */
+/** Starlight integration — identity and navigation loaded from the vault (site.config.json). */
 export const starlightIntegration = starlight({
     title: site.title,
     customCss: ['./src/styles/mermaid.css'],

@@ -2,125 +2,118 @@
 
 # Starlight Obsidian Engine
 
-**Publish an Obsidian vault as a fast, static Astro + Starlight site — content and engine fully decoupled.**
+**Publish an Obsidian vault as a fast, multilingual static site — content and engine fully decoupled.**
 
 [![Astro](https://img.shields.io/badge/Astro-6.x-BC52EE?logo=astro&logoColor=white)](https://astro.build)
 [![Starlight](https://img.shields.io/badge/Starlight-0.39-FFC107?logo=astro&logoColor=black)](https://starlight.astro.build)
 [![Mermaid](https://img.shields.io/badge/Mermaid-pan%2Fzoom-FF3670?logo=mermaid&logoColor=white)](https://mermaid.js.org)
-[![i18n](https://img.shields.io/badge/i18n-FR%20%2F%20EN-0A7EA4)](https://starlight.astro.build/guides/i18n/)
+[![i18n](https://img.shields.io/badge/i18n-ready-0A7EA4)](https://starlight.astro.build/guides/i18n/)
 [![License: 0BSD](https://img.shields.io/badge/License-0BSD-brightgreen.svg)](./LICENSE)
-[![PRs welcome](https://img.shields.io/badge/PRs-welcome-success.svg)](#contributing--contribuer)
+[![PRs welcome](https://img.shields.io/badge/PRs-welcome-success.svg)](#contributing)
 
 </div>
 
 ---
 
-## 🇫🇷 Français
+A **generic Astro + Starlight engine** that turns an **Obsidian** vault into a fast, multilingual static
+documentation site. The engine (this repo) and the content (your vault) live in **two separate
+repositories**: edit your notes in Obsidian, let the engine publish them.
 
-Un **moteur Astro + Starlight générique** pour transformer un coffre **Obsidian** en site de documentation statique, rapide et multilingue. Le moteur (ce dépôt) et le contenu (votre vault) vivent dans **deux dépôts séparés** : vous mettez à jour vos notes dans Obsidian, le moteur les publie.
+## Why?
 
-### Pourquoi ce projet ?
+- **Full decoupling** — the engine holds no notes. Content is mounted from an external vault through a
+  junction (`src/content/docs`), resolved at build time from `VAULT_PATH`.
+- **Obsidian first** — author with wiki links `[[...]]`, templates and Mermaid diagrams; the web render follows.
+- **Interactive Mermaid** — wheel/button zoom, pan and fullscreen via a custom `MermaidEnhancer` built on `svg-pan-zoom`.
+- **Multilingual** — i18n routing out of the box (locales driven by the vault config).
+- **Content-side config** — title, locales, sidebar and social links live in `site.config.json` at the
+  vault root, not in the engine.
 
-- **Découplage total** : le code du moteur ne contient aucune note. Le contenu est monté depuis un vault externe via une *junction* (`src/content/docs`).
-- **Obsidian first** : éditez dans Obsidian (wiki links `[[...]]`, templates, diagrammes Mermaid) — le rendu web suit.
-- **Diagrammes Mermaid interactifs** : pan, zoom molette/boutons et plein écran (composant maison `MermaidEnhancer`).
-- **Multilingue** : routage i18n FR/EN prêt à l'emploi via Starlight.
-- **Configuration côté contenu** : titre, locales, sidebar et liens sociaux vivent dans `site.config.json`, à la racine du vault — pas dans le moteur.
-
-### Architecture
+## Architecture
 
 ```
 Webdev/
-├─ starlight-obsidian-engine/   ← ce dépôt (moteur, public)
-│  └─ src/content/docs   ──────┐  (junction Windows / symlink)
-└─ ia-on-prem-vault/            ◄┘  ← vault Obsidian (contenu, privé)
-   ├─ site.config.json          (titre, locales, sidebar, social)
+├─ starlight-obsidian-engine/   ← this repo (engine, public)
+│  └─ src/content/docs   ──────┐  (Windows junction / symlink)
+└─ your-obsidian-vault/         ◄┘  ← Obsidian vault (content, private)
+   ├─ site.config.json          (title, locales, sidebar, social)
    ├─ index.mdx
-   └─ 01-fondations/…
+   └─ 01-foundations/…
 ```
 
-Le contenu **ne vit pas** dans le moteur : il est résolu au build depuis `VAULT_PATH`. La junction est **requise** pour que Vite résolve les imports `@astrojs/starlight/components` dans les fichiers `.mdx` du vault (`preserveSymlinks` dans `astro.config.mjs`).
+Content **does not live** in the engine: it is resolved at build time from `VAULT_PATH`. The junction is
+**required** so Vite can resolve `@astrojs/starlight/components` imports inside the vault's `.mdx` files
+(`preserveSymlinks` in `astro.config.mjs`).
 
-### Démarrage rapide
+## Quick start
 
 ```bash
-# 1. Cloner le moteur + placer votre vault Obsidian à côté
+# 1. Clone the engine and place your Obsidian vault next to it
 git clone https://github.com/DamienBecherini/starlight-obsidian-engine.git
 cd starlight-obsidian-engine
 
-# 2. Indiquer le chemin du vault
-cp .env.example .env        # puis éditer VAULT_PATH (ex. ../ia-on-prem-vault)
+# 2. Point to the vault
+cp .env.example .env            # then edit VAULT_PATH (e.g. ../your-obsidian-vault)
 
-# 3. Installer + lier le vault (crée la junction src/content/docs → VAULT_PATH)
+# 3. Install + link the vault (creates the junction src/content/docs → VAULT_PATH)
 npm install
 npm run link:vault
 
-# 4. Lancer
-npm run dev                 # http://localhost:4321
+# 4. Run
+npm run dev                     # http://localhost:4321
 ```
 
-`predev` / `prebuild` recréent automatiquement la junction si elle manque.
+`predev` / `prebuild` recreate the junction automatically if it is missing.
 
-### Configuration du site (`site.config.json`, dans le vault)
+## Site configuration (`site.config.json`, in the vault)
 
 ```jsonc
 {
-  "title": "Mon Site",
-  "defaultLocale": "fr",
-  "locales": { "fr": { "label": "Français" }, "en": { "label": "English" } },
+  "title": "My Site",
+  "defaultLocale": "root",
+  "locales": {
+    "root": { "label": "English", "lang": "en" },
+    "fr": { "label": "Français", "lang": "fr" }
+  },
   "social": [{ "icon": "github", "label": "GitHub", "href": "https://github.com/..." }],
-  "sidebar": [ /* format Starlight */ ]
+  "sidebar": [ /* Starlight sidebar format */ ]
 }
 ```
 
-### Scripts
+If `site.config.json` is missing, the engine falls back to sensible defaults (English root locale,
+autogenerated sidebar).
 
-| Commande | Rôle |
-|----------|------|
-| `npm run dev` | Serveur de développement |
-| `npm run build` | Build statique (`dist/`) |
-| `npm run preview` | Prévisualiser le build |
-| `npm run link:vault` | (Re)créer la junction `src/content/docs` → `VAULT_PATH` |
+## Scripts
 
-### Modules intégrés
+| Command | Purpose |
+|---------|---------|
+| `npm run dev` | Development server |
+| `npm run build` | Static build (`dist/`) |
+| `npm run preview` | Preview the build |
+| `npm run link:vault` | (Re)create the junction `src/content/docs` → `VAULT_PATH` |
 
-- **Mermaid** — `src/components/MermaidEnhancer.astro` + `src/styles/mermaid.css` (pan/zoom/plein écran) au-dessus de `astro-mermaid`.
-- **Wiki links** — `remark-wiki-link` (`config/markdown.mjs`) pour la syntaxe `[[...]]` d'Obsidian.
-- **i18n** — locales et libellés pilotés par `site.config.json`.
+## Built-in modules
 
----
+- **Mermaid** — `src/components/MermaidEnhancer.astro` + `src/styles/mermaid.css` (pan/zoom/fullscreen) on
+  top of `astro-mermaid`. See the bundled debugging skill in `.agents/skills/astro-mermaid/`.
+- **Wiki links** — `remark-wiki-link` (`config/markdown.mjs`) for Obsidian's `[[...]]` syntax.
+- **i18n** — locales and labels driven by `site.config.json`.
 
-## 🇬🇧 English
+## Project layout
 
-A **generic Astro + Starlight engine** that turns an **Obsidian** vault into a fast, multilingual static documentation site. The engine (this repo) and the content (your vault) live in **two separate repositories**: edit your notes in Obsidian, let the engine publish them.
-
-### Why?
-
-- **Full decoupling** — the engine holds no notes. Content is mounted from an external vault through a junction (`src/content/docs`).
-- **Obsidian first** — author with wiki links `[[...]]`, templates and Mermaid diagrams; the web render follows.
-- **Interactive Mermaid** — wheel/button zoom, pan and fullscreen via a custom `MermaidEnhancer`.
-- **Multilingual** — FR/EN i18n routing out of the box.
-- **Content-side config** — title, locales, sidebar and social links live in `site.config.json` at the vault root, not in the engine.
-
-### Quick start
-
-```bash
-git clone https://github.com/DamienBecherini/starlight-obsidian-engine.git
-cd starlight-obsidian-engine
-cp .env.example .env        # set VAULT_PATH (e.g. ../ia-on-prem-vault)
-npm install
-npm run link:vault          # junction src/content/docs → VAULT_PATH
-npm run dev                 # http://localhost:4321
+```
+config/          engine config (vault resolution, site config loader, integrations, markdown, Starlight)
+scripts/         vault linking + pre-dev/build checks
+src/components/  Head override + MermaidEnhancer
+src/styles/      Mermaid styles
+src/content.config.ts   content collection (docsLoader on the junction, glob otherwise)
 ```
 
-Site configuration (title, locales, sidebar, social) is read from `site.config.json` at the root of your vault — see the Français section above for the schema.
+## Contributing
 
----
-
-## Contributing / Contribuer
-
-Issues and PRs welcome. The engine is intentionally content-agnostic — keep notes in your own vault repo.
+Issues and PRs welcome. The engine is intentionally content-agnostic — keep your notes in your own vault repo.
 
 ## License
 
-[BSD Zero Clause License (0BSD)](./LICENSE) — public-domain-equivalent, no attribution required. Use it for anything, including closed-source and commercial work.
+[BSD Zero Clause License (0BSD)](./LICENSE) — public-domain-equivalent, no attribution required. Use it for
+anything, including closed-source and commercial work.

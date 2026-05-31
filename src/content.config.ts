@@ -9,7 +9,7 @@ import { projectRoot, resolveVaultPath } from '../config/vault.mjs';
 const LINKED_DOCS = path.join(projectRoot, 'src/content/docs');
 const vaultPath = resolveVaultPath();
 
-/** Junction ou contenu sous src/content/docs → docsLoader natif (résolution Vite MDX). */
+/** Junction or content under src/content/docs → native docsLoader (Vite MDX resolution). */
 function useDocsLoader() {
 	const normalized = path.normalize(vaultPath);
 	const linked = path.normalize(LINKED_DOCS);
@@ -19,7 +19,7 @@ function useDocsLoader() {
 			return fs.realpathSync(linked) === fs.realpathSync(vaultPath);
 		}
 	} catch {
-		/* pas de lien */
+		/* not a link */
 	}
 	return false;
 }

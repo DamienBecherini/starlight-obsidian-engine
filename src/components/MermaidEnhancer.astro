@@ -1,35 +1,35 @@
 ---
-// Progressive enhancement des diagrammes Mermaid (pan/zoom, contrôles, plein écran).
-// Le SVG est généré au build par astro-mermaid ; ce script le décore côté client.
+// Progressive enhancement for Mermaid diagrams (pan/zoom, controls, fullscreen).
+// The SVG is generated at build time by astro-mermaid; this script decorates it client-side.
 ---
 
 <script>
     import svgPanZoom from 'svg-pan-zoom';
 
     // ───────────────────────────────────────────────────────────────────────────
-    // RÉGLAGES — un diagramme passe en mode zoomable (overlay) si AU MOINS un de ces
-    // trois seuils est dépassé. Sinon il reste affiché inline, net et statique.
+    // SETTINGS — a diagram switches to zoomable mode (overlay) if AT LEAST one of
+    // these three thresholds is exceeded. Otherwise it stays inline, crisp and static.
     // ───────────────────────────────────────────────────────────────────────────
 
-    // Largeur native (unités viewBox) au-delà de laquelle le diagramme est jugé « large ».
-    // Knob stable, indépendant de la taille d'écran : c'est la largeur intrinsèque du dessin.
+    // Native width (viewBox units) above which the diagram is considered "wide".
+    // Stable knob, independent of screen size: it is the intrinsic width of the drawing.
     const MAX_INLINE_WIDTH = 1500;
-    // Hauteur native (unités viewBox) au-delà de laquelle le diagramme est jugé « haut ».
+    // Native height (viewBox units) above which the diagram is considered "tall".
     const MAX_INLINE_HEIGHT = 480;
-    // Échelle d'affichage minimale tolérée (largeur rendue ÷ largeur native).
-    // < 1 signifie que Mermaid a rétréci le diagramme pour le faire tenir dans la colonne
-    // (donc texte plus petit). Filet de sécurité pour les écrans étroits. 1 = aucune tolérance.
+    // Minimum tolerated display scale (rendered width ÷ native width).
+    // < 1 means Mermaid shrank the diagram to fit the column (so smaller text).
+    // Safety net for narrow screens. 1 = no tolerance.
     const MIN_LEGIBLE_SCALE = 0.5;
 
-    // Mode debug : affiche un panneau (sous chaque schéma) avec dimensions, échelle, zoom live et verdict.
-    // Repasser à true pour le réactiver ; false = aucun panneau injecté.
+    // Debug mode: shows a panel (under each diagram) with dimensions, scale, live zoom and verdict.
+    // Set back to true to re-enable it; false = no panel injected.
     const DEBUG_MERMAID = false;
 
     type PanZoom = ReturnType<typeof svgPanZoom>;
 
-    // Marqueur posé sur l'élément <svg> (et non sur le conteneur) : astro-mermaid recrée le SVG
-    // lors de ses re-rendus (changement de thème), ce qui efface nos contrôles. En keyant sur le
-    // SVG, un nouveau SVG déclenche une ré-injection propre des contrôles.
+    // Marker placed on the <svg> element (not the container): astro-mermaid recreates the SVG
+    // on its re-renders (theme change), which wipes our controls. By keying on the SVG, a new
+    // SVG triggers a clean re-injection of the controls.
     type EnhancedSvg = SVGSVGElement & { __mermaidEnhanced?: boolean };
 
     interface MermaidState {
@@ -37,18 +37,18 @@
         isSmall: boolean;
         panZoom: PanZoom | null;
         refreshDebug?: () => void;
-        // svg-pan-zoom retire l'attribut viewBox à l'init et ne le restaure pas à destroy().
-        // On mémorise l'original pour pouvoir le réappliquer après le plein écran (petits diagrammes).
+        // svg-pan-zoom removes the viewBox attribute on init and does not restore it on destroy().
+        // We remember the original to reapply it after fullscreen (small diagrams).
         originalViewBox?: string | null;
     }
 
     const el = <T extends Element>(parent: ParentNode, selector: string): T | null =>
         parent.querySelector<T>(selector);
 
-    // État par conteneur (évite toute fuite : aucune donnée n'est rattachée au document).
+    // Per-container state (avoids any leak: no data is attached to the document).
     const states = new WeakMap<HTMLElement, MermaidState>();
 
-    // Conteneur actuellement en plein écran (suivi pour les écouteurs globaux uniques).
+    // Container currently in fullscreen (tracked for the single global listeners).
     let currentFsContainer: HTMLElement | null = null;
 
     const makePanZoom = (svg: SVGSVGElement, onZoom?: (z: number) => void): PanZoom =>
@@ -57,13 +57,13 @@
             controlIconsEnabled: false,
             fit: true,
             center: true,
-            // Le zoom molette est géré manuellement (Ctrl+molette sur l'article, molette libre en plein écran)
-            // pour éviter le double-zoom et préserver le scroll de page.
+            // Wheel zoom is handled manually (Ctrl+wheel on the article, free wheel in fullscreen)
+            // to avoid double-zoom and preserve page scrolling.
             mouseWheelZoomEnabled: false,
             preventMouseEventsDefault: false,
-            // IMPORTANT : un callback onZoom DÉFINI est requis. Sans lui, svg-pan-zoom n'applique pas
-            // visuellement le zoom en plein écran (zoomIn/zoomOut/zoomAtPoint restent sans effet tant
-            // qu'un pan ne survient pas). On garantit donc toujours une fonction (défaut : no-op).
+            // IMPORTANT: a DEFINED onZoom callback is required. Without it, svg-pan-zoom does not
+            // visually apply the zoom in fullscreen (zoomIn/zoomOut/zoomAtPoint stay ineffective
+            // until a pan occurs). So we always guarantee a function (default: no-op).
             onZoom: onZoom ?? (() => {}),
         });
 
@@ -75,31 +75,31 @@
 
     const enhanceContainer = (container: HTMLElement): void => {
         const svg = container.querySelector<EnhancedSvg>('svg');
-        // Le SVG peut ne pas être encore rendu par astro-mermaid : on laisse l'observer rappeler plus tard.
+        // The SVG may not be rendered yet by astro-mermaid: we let the observer call back later.
         if (!svg) return;
 
-        // Déjà enrichi (ce SVG précis) ? On sort. Un re-rendu d'astro-mermaid crée un nouveau SVG,
-        // sans ce marqueur, ce qui relancera l'enrichissement et réinjectera les contrôles.
+        // Already enhanced (this exact SVG)? Bail out. An astro-mermaid re-render creates a new SVG
+        // without this marker, which will restart enhancement and re-inject the controls.
         if (svg.__mermaidEnhanced) return;
         svg.__mermaidEnhanced = true;
 
-        // Nettoyage d'un rendu précédent : détruire l'ancienne instance et retirer le panneau debug
-        // résiduel (en sibling, il survit au innerHTML qui efface les contrôles internes).
+        // Cleanup of a previous render: destroy the old instance and remove the leftover debug panel
+        // (as a sibling, it survives the innerHTML that wipes the internal controls).
         const previous = states.get(container);
         if (previous?.panZoom) {
             try {
                 previous.panZoom.destroy();
             } catch {
-                /* instance déjà détachée */
+                /* instance already detached */
             }
         }
         const staleDebug = container.nextElementSibling;
         if (staleDebug?.classList.contains('mermaid-debug')) staleDebug.remove();
 
-        // 1. Décision inline vs zoomable, fondée sur trois seuils indépendants :
-        //    - largeur native trop grande (MAX_INLINE_WIDTH)
-        //    - hauteur native trop grande (MAX_INLINE_HEIGHT)
-        //    - échelle d'affichage trop faible = texte rétréci/illisible (MIN_LEGIBLE_SCALE)
+        // 1. Inline vs zoomable decision, based on three independent thresholds:
+        //    - native width too large (MAX_INLINE_WIDTH)
+        //    - native height too large (MAX_INLINE_HEIGHT)
+        //    - display scale too low = shrunk/illegible text (MIN_LEGIBLE_SCALE)
         const viewBox = svg.getAttribute('viewBox');
         let naturalW = 0;
         let naturalH = 0;
@@ -114,14 +114,14 @@
         const rect = svg.getBoundingClientRect();
         const displayedW = rect.width || naturalW;
         const displayedH = rect.height || naturalH;
-        // Échelle d'affichage = largeur rendue / largeur native (≤ 1 : Mermaid ne dépasse jamais 100%).
+        // Display scale = rendered width / native width (≤ 1: Mermaid never exceeds 100%).
         const displayScale = naturalW > 0 ? displayedW / naturalW : 1;
 
-        // Chaque seuil dépassé est enregistré pour l'overlay debug (on voit lequel a déclenché).
+        // Each exceeded threshold is recorded for the debug overlay (we see which one triggered).
         const triggers: string[] = [];
-        if (naturalW > MAX_INLINE_WIDTH) triggers.push(`largeur ${Math.round(naturalW)} > ${MAX_INLINE_WIDTH}`);
-        if (naturalH > MAX_INLINE_HEIGHT) triggers.push(`hauteur ${Math.round(naturalH)} > ${MAX_INLINE_HEIGHT}`);
-        if (displayScale < MIN_LEGIBLE_SCALE) triggers.push(`échelle ${displayScale.toFixed(2)} < ${MIN_LEGIBLE_SCALE}`);
+        if (naturalW > MAX_INLINE_WIDTH) triggers.push(`width ${Math.round(naturalW)} > ${MAX_INLINE_WIDTH}`);
+        if (naturalH > MAX_INLINE_HEIGHT) triggers.push(`height ${Math.round(naturalH)} > ${MAX_INLINE_HEIGHT}`);
+        if (displayScale < MIN_LEGIBLE_SCALE) triggers.push(`scale ${displayScale.toFixed(2)} < ${MIN_LEGIBLE_SCALE}`);
 
         const needsZoom = triggers.length > 0;
         const isSmall = !needsZoom;
@@ -129,30 +129,30 @@
         const state: MermaidState = { svg, isSmall, panZoom: null, originalViewBox: viewBox };
         states.set(container, state);
 
-        // Overlay debug (optionnel) : dimensions, échelle, verdict et zoom live.
+        // Debug overlay (optional): dimensions, scale, verdict and live zoom.
         let debugEl: HTMLDivElement | null = null;
         if (DEBUG_MERMAID) {
             debugEl = document.createElement('div');
             debugEl.className = 'mermaid-debug';
-            // Hors du schéma, juste en dessous : visible quel que soit le verdict et jamais rogné par overflow.
+            // Outside the diagram, right below it: visible whatever the verdict and never clipped by overflow.
             container.insertAdjacentElement('afterend', debugEl);
             const renderDebug = () => {
                 if (!debugEl) return;
                 const z = state.panZoom ? state.panZoom.getZoom() : null;
                 debugEl.innerHTML = `
-                    <div class="dbg-verdict ${isSmall ? 'is-inline' : 'is-zoom'}">${isSmall ? '● INLINE (net)' : '● ZOOM (overlay)'}</div>
+                    <div class="dbg-verdict ${isSmall ? 'is-inline' : 'is-zoom'}">${isSmall ? '● INLINE (crisp)' : '● ZOOM (overlay)'}</div>
                     <div>viewBox&nbsp;: <b>${Math.round(naturalW)}</b> × <b>${Math.round(naturalH)}</b></div>
-                    <div>rendu&nbsp;: ${Math.round(displayedW)} × ${Math.round(displayedH)} px</div>
-                    <div>échelle init&nbsp;: <b>${displayScale.toFixed(2)}</b> (min ${MIN_LEGIBLE_SCALE})</div>
-                    <div>seuils L/H&nbsp;: ${MAX_INLINE_WIDTH} / ${MAX_INLINE_HEIGHT}</div>
-                    <div>zoom live&nbsp;: <b>${z != null ? z.toFixed(2) + '×' : '—'}</b></div>
-                    <div class="dbg-triggers">${triggers.length ? '⚠ ' + triggers.join(' · ') : 'aucun seuil franchi'}</div>
+                    <div>rendered&nbsp;: ${Math.round(displayedW)} × ${Math.round(displayedH)} px</div>
+                    <div>init scale&nbsp;: <b>${displayScale.toFixed(2)}</b> (min ${MIN_LEGIBLE_SCALE})</div>
+                    <div>thresholds W/H&nbsp;: ${MAX_INLINE_WIDTH} / ${MAX_INLINE_HEIGHT}</div>
+                    <div>live zoom&nbsp;: <b>${z != null ? z.toFixed(2) + '×' : '—'}</b></div>
+                    <div class="dbg-triggers">${triggers.length ? '⚠ ' + triggers.join(' · ') : 'no threshold crossed'}</div>
                 `;
             };
             state.refreshDebug = renderDebug;
         }
 
-        // 2. Application conditionnelle des styles et de l'initialisation du zoom.
+        // 2. Conditional application of styles and zoom initialization.
         if (!isSmall) {
             svg.style.width = '100%';
             svg.style.height = '480px';
@@ -163,7 +163,7 @@
         }
         state.refreshDebug?.();
 
-        // Zoom molette intelligent : Ctrl+molette dans l'article, molette libre en plein écran.
+        // Smart wheel zoom: Ctrl+wheel inside the article, free wheel in fullscreen.
         svg.addEventListener(
             'wheel',
             (e: WheelEvent) => {
@@ -181,50 +181,50 @@
             { passive: false },
         );
 
-        // Pavé de contrôle géométrique (style GitHub).
+        // Geometric control pad (GitHub style).
         const controls = document.createElement('div');
         controls.className = 'mermaid-custom-controls';
         controls.innerHTML = `
             <div class="action-group">
-                <button class="mermaid-ctrl-btn btn-copy" title="Copier le code Mermaid">
+                <button class="mermaid-ctrl-btn btn-copy" title="Copy Mermaid code">
                     <svg class="copy-icon-normal" viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
                     <svg class="copy-icon-success" viewBox="0 0 24 24" width="14" height="14" stroke="#22c55e" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
                 </button>
-                <button class="mermaid-ctrl-btn btn-fs" title="Plein écran">
+                <button class="mermaid-ctrl-btn btn-fs" title="Fullscreen">
                     <svg class="fs-icon-enter" viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
                     <svg class="fs-icon-exit" viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14h6v6M20 10h-6V4M14 10l7-7M10 14l-7 7"/></svg>
                 </button>
             </div>
             <div class="pan-grid">
-                <button class="mermaid-ctrl-btn btn-up" title="Déplacer vers le haut" style="grid-area: up;">
+                <button class="mermaid-ctrl-btn btn-up" title="Pan up" style="grid-area: up;">
                     <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg>
                 </button>
-                <button class="mermaid-ctrl-btn btn-left" title="Déplacer vers la gauche" style="grid-area: left;">
+                <button class="mermaid-ctrl-btn btn-left" title="Pan left" style="grid-area: left;">
                     <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
                 </button>
-                <button class="mermaid-ctrl-btn btn-reset" title="Réinitialiser la vue" style="grid-area: reset;">
+                <button class="mermaid-ctrl-btn btn-reset" title="Reset view" style="grid-area: reset;">
                     <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
                 </button>
-                <button class="mermaid-ctrl-btn btn-right" title="Déplacer vers la droite" style="grid-area: right;">
+                <button class="mermaid-ctrl-btn btn-right" title="Pan right" style="grid-area: right;">
                     <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
                 </button>
-                <button class="mermaid-ctrl-btn btn-zoom-in" title="Zoomer" style="grid-area: zoomin;">
+                <button class="mermaid-ctrl-btn btn-zoom-in" title="Zoom in" style="grid-area: zoomin;">
                     <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
                 </button>
-                <button class="mermaid-ctrl-btn btn-zoom-out" title="Dézoomer" style="grid-area: zoomout;">
+                <button class="mermaid-ctrl-btn btn-zoom-out" title="Zoom out" style="grid-area: zoomout;">
                     <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
                 </button>
-                <button class="mermaid-ctrl-btn btn-down" title="Déplacer vers le bas" style="grid-area: down;">
+                <button class="mermaid-ctrl-btn btn-down" title="Pan down" style="grid-area: down;">
                     <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
                 </button>
             </div>
         `;
         container.appendChild(controls);
 
-        // Bouton de fermeture plein écran haut-droite (format rectangulaire comme les autres).
+        // Top-right fullscreen close button (rectangular format like the others).
         const closeFsBtn = document.createElement('button');
         closeFsBtn.className = 'mermaid-close-fs-btn';
-        closeFsBtn.title = 'Quitter le plein écran';
+        closeFsBtn.title = 'Exit fullscreen';
         closeFsBtn.innerHTML = `
             <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
                 <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -237,7 +237,7 @@
             if (document.fullscreenElement) document.exitFullscreen();
         });
 
-        // Tooltip animé (Ctrl + molette).
+        // Animated tooltip (Ctrl + wheel).
         const hint = document.createElement('div');
         hint.className = 'mermaid-zoom-hint';
         hint.innerHTML = `
@@ -254,11 +254,11 @@
                     <path class="scroll-arrow arrow-down" d="M12,18 L9,15 M12,18 L15,15" fill="none" stroke="#ef4444" stroke-width="1.5" stroke-linecap="round"/>
                 </svg>
             </div>
-            <span class="hint-text">pour zoomer</span>
+            <span class="hint-text">to zoom</span>
         `;
         container.appendChild(hint);
 
-        // Pan via les boutons directionnels (sécurisé : aucun effet tant que l'instance n'est pas active).
+        // Pan via directional buttons (safe: no effect until the instance is active).
         const panStep = 60;
         el(controls, '.btn-up')?.addEventListener('click', () => state.panZoom?.panBy({ x: 0, y: panStep }));
         el(controls, '.btn-down')?.addEventListener('click', () => state.panZoom?.panBy({ x: 0, y: -panStep }));
@@ -276,7 +276,7 @@
             if (instance) instance.zoomOut();
         });
 
-        // Plein écran (Fullscreen API).
+        // Fullscreen (Fullscreen API).
         el<HTMLElement>(controls, '.btn-fs')?.addEventListener('click', () => {
             if (!document.fullscreenElement) {
                 container.requestFullscreen().catch((err) => console.log(err));
@@ -285,7 +285,7 @@
             }
         });
 
-        // Copier le code Mermaid brut (depuis le <desc> natif du SVG).
+        // Copy the raw Mermaid code (from the SVG's native <desc>).
         const btnCopy = el<HTMLElement>(controls, '.btn-copy');
         btnCopy?.addEventListener('click', () => {
             const rawCode = svg.querySelector('desc')?.textContent ?? '';
@@ -293,7 +293,7 @@
                 btnCopy.classList.add('copied');
                 const copyTooltip = document.createElement('div');
                 copyTooltip.className = 'mermaid-copy-tooltip';
-                copyTooltip.innerText = 'Copié !';
+                copyTooltip.innerText = 'Copied!';
                 btnCopy.appendChild(copyTooltip);
                 setTimeout(() => {
                     btnCopy.classList.remove('copied');
@@ -303,12 +303,12 @@
         });
     };
 
-    // --- Écouteurs globaux UNIQUES (attachés une seule fois au niveau module) ---
+    // --- SINGLE global listeners (attached only once at module level) ---
 
     const enterFullscreen = (container: HTMLElement, state: MermaidState): void => {
         container.classList.add('is-fullscreen');
         if (state.isSmall) {
-            // Initialisation à la volée pour les petits diagrammes : ils deviennent zoomables/déplaçables.
+            // On-the-fly init for small diagrams: they become zoomable/pannable.
             state.svg.style.width = '100vw';
             state.svg.style.height = '100vh';
             state.panZoom = makePanZoom(state.svg, state.refreshDebug);
@@ -321,23 +321,23 @@
     const exitFullscreen = (container: HTMLElement, state: MermaidState): void => {
         container.classList.remove('is-fullscreen');
         if (state.isSmall) {
-            // Destruction propre : retour à l'état statique net d'origine.
-            // destroy() de svg-pan-zoom peut lever (« fn is undefined » lors du retrait d'écouteurs) ;
-            // on l'isole pour ne PAS interrompre le nettoyage visuel qui suit (sinon schéma vide en sortie).
+            // Clean teardown: back to the original crisp static state.
+            // svg-pan-zoom's destroy() may throw ("fn is undefined" while removing listeners);
+            // we isolate it so we do NOT interrupt the visual cleanup below (otherwise empty diagram on exit).
             try {
                 state.panZoom?.destroy();
             } catch {
-                /* teardown partiel : on poursuit le nettoyage ci-dessous */
+                /* partial teardown: we continue the cleanup below */
             }
             state.panZoom = null;
             state.svg.style.width = '';
             state.svg.style.height = '';
-            // svg-pan-zoom retire le viewBox à l'init sans le restaurer (→ SVG par défaut 300x150),
-            // et écrit son transform (fit/center) de façon DIFFÉRÉE via requestAnimationFrame.
-            // Au moment de la sortie, une écriture de transform peut encore être EN ATTENTE : un nettoyage
-            // synchrone serait écrasé par cette frame différée, qui réappliquerait le transform plein écran
-            // (translate ≈ height/2) sur le SVG redevenu inline → contenu poussé hors-cadre (schéma vide).
-            // On diffère donc la restauration d'une frame pour passer APRÈS l'écriture de la lib (ordre FIFO des rAF).
+            // svg-pan-zoom removes the viewBox on init without restoring it (→ default 300x150 SVG),
+            // and writes its transform (fit/center) in a DEFERRED way via requestAnimationFrame.
+            // On exit, a transform write may still be PENDING: a synchronous cleanup would be overwritten
+            // by that deferred frame, which would reapply the fullscreen transform (translate ≈ height/2)
+            // onto the now-inline SVG → content pushed off-frame (empty diagram).
+            // So we defer the restore by one frame to run AFTER the lib's write (FIFO order of rAFs).
             const svg = state.svg;
             const originalViewBox = state.originalViewBox;
             requestAnimationFrame(() => {
@@ -357,14 +357,14 @@
     document.addEventListener('fullscreenchange', () => {
         const fsEl = document.fullscreenElement as HTMLElement | null;
 
-        // Sortie du conteneur précédemment en plein écran.
+        // Exit of the container previously in fullscreen.
         if (currentFsContainer && currentFsContainer !== fsEl) {
             const prev = states.get(currentFsContainer);
             if (prev) exitFullscreen(currentFsContainer, prev);
             currentFsContainer = null;
         }
 
-        // Entrée d'un conteneur connu.
+        // Entry of a known container.
         if (fsEl && states.has(fsEl)) {
             enterFullscreen(fsEl, states.get(fsEl)!);
             currentFsContainer = fsEl;
@@ -396,7 +396,7 @@
         }
     });
 
-    // --- Détection déterministe du rendu Mermaid via MutationObserver ---
+    // --- Deterministic detection of Mermaid render via MutationObserver ---
 
     let scanQueued = false;
     const scan = (): void => {
@@ -412,7 +412,7 @@
     const observer = new MutationObserver(queueScan);
     observer.observe(document.body, { childList: true, subtree: true });
 
-    // Scan initial + filet de sécurité sur la navigation Starlight (idempotent grâce au marquage du SVG).
+    // Initial scan + safety net on Starlight navigation (idempotent thanks to the SVG marker).
     queueScan();
     document.addEventListener('astro:page-load', queueScan);
 </script>

@@ -14,8 +14,8 @@ const defaultSidebar = [
 /** @type {import('@astrojs/starlight/types').StarlightUserConfig['locales']} */
 const defaultLocales = {
     root: {
-        label: 'Français',
-        lang: 'fr',
+        label: 'English',
+        lang: 'en',
     },
 };
 
@@ -29,7 +29,7 @@ const defaultLocales = {
  */
 
 /**
- * Charge site.config.json depuis la racine du vault.
+ * Loads site.config.json from the vault root.
  * @returns {Required<Pick<SiteConfig, 'title' | 'defaultLocale' | 'locales' | 'sidebar'>> & Pick<SiteConfig, 'social'>}
  */
 export function loadSiteConfig() {
@@ -38,7 +38,7 @@ export function loadSiteConfig() {
 
     if (!fs.existsSync(configPath)) {
         console.log(
-            `ℹ️ Aucun site.config.json dans le vault (${vaultPath}). Configuration moteur par défaut.`,
+            `ℹ️ No site.config.json in the vault (${vaultPath}). Using default engine configuration.`,
         );
         return {
             title: 'Obsidian Vault Site',
@@ -53,7 +53,7 @@ export function loadSiteConfig() {
         const raw = fs.readFileSync(configPath, 'utf-8');
         /** @type {SiteConfig} */
         const parsed = JSON.parse(raw);
-        console.log(`🎯 Configuration du site chargée depuis ${configPath}`);
+        console.log(`🎯 Site configuration loaded from ${configPath}`);
         return {
             title: parsed.title ?? 'Obsidian Vault Site',
             defaultLocale: parsed.defaultLocale ?? 'root',
@@ -63,7 +63,7 @@ export function loadSiteConfig() {
         };
     } catch (error) {
         console.error(
-            `⚠️ Erreur lors de la lecture de ${configPath}. Configuration par défaut.`,
+            `⚠️ Error reading ${configPath}. Using default configuration.`,
             error,
         );
         return {
