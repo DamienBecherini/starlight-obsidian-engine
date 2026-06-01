@@ -41,6 +41,28 @@ export function resolveVaultPath() {
 }
 
 /**
+ * Absolute vault root for `.env`, `.gitignore`, and git operations.
+ * Resolves junctions/symlinks to the real vault directory.
+ * @returns {string}
+ */
+export function resolveVaultGitRoot() {
+    const candidate = envVaultPath() ?? resolveVaultPath();
+    try {
+        const stat = fs.lstatSync(candidate);
+        if (stat.isSymbolicLink()) {
+            return fs.realpathSync(candidate);
+        }
+    } catch {
+        /* fall through */
+    }
+    try {
+        return fs.realpathSync(candidate);
+    } catch {
+        return candidate;
+    }
+}
+
+/**
  * @param {string} dir
  * @returns {boolean}
  */

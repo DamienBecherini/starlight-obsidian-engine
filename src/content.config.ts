@@ -4,10 +4,12 @@ import { docsLoader } from '@astrojs/starlight/loaders';
 import { docsSchema } from '@astrojs/starlight/schema';
 import fs from 'node:fs';
 import path from 'node:path';
-import { projectRoot, resolveVaultPath } from '../config/vault.mjs';
+import { projectRoot, resolveVaultPath, resolveVaultGitRoot } from '../config/vault.mjs';
+import { vaultAwareDocsLoader } from '../config/loaders/vault-docs.mjs';
 
 const LINKED_DOCS = path.join(projectRoot, 'src/content/docs');
 const vaultPath = resolveVaultPath();
+const vaultRoot = resolveVaultGitRoot();
 
 /** Junction or content under src/content/docs → native docsLoader (Vite MDX resolution). */
 function useDocsLoader() {
@@ -26,14 +28,20 @@ function useDocsLoader() {
 
 const vaultBase = path.relative(projectRoot, vaultPath).split(path.sep).join('/');
 
+const innerDocsLoader = useDocsLoader()
+	? docsLoader()
+	: glob({
+			base: vaultBase,
+			pattern: '**/[^_]*.{md,mdx}',
+		});
+
 export const collections = {
 	docs: defineCollection({
-		loader: useDocsLoader()
-			? docsLoader()
-			: glob({
-					base: vaultBase,
-					pattern: '**/[^_]*.{md,mdx}',
-				}),
+		loader: vaultAwareDocsLoader({
+			inner: innerDocsLoader,
+			vaultRoot,
+			engineRoot: projectRoot,
+		}),
 		schema: docsSchema(),
 	}),
 };

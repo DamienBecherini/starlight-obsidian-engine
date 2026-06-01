@@ -295,6 +295,27 @@ Notes:
 - **Public URL:** set `url` in the vault's `site.config.json` (not in the engine). Enables the sitemap and
   absolute canonical URLs at build time.
 
+### Private / unpublished notes
+
+The engine reads the vault **`.gitignore`** at build time and **excludes matching Markdown/MDX** from
+the site. Deploy only uploads `dist/`, so gitignored notes never reach the web. With mirror mode (default),
+pages that were previously published but are now gitignored are **removed from the remote** on the next deploy.
+
+Convention in the vault:
+
+```
+_private/          ← confidential notes (gitignored except _private/README.md placeholder)
+.gitignore         ← any rule here also excludes files from the build
+```
+
+The `_private/` folder is **always** excluded from the build, even if a file is negated in `.gitignore`
+for Git tracking (e.g. the placeholder README on GitHub).
+
+Add custom paths to the vault `.gitignore` for other unpublished content. Do not reference private pages
+in `site.config.json` sidebar.
+
+With `--no-mirror`, gitignored pages already online are **not** deleted from the server automatically.
+
 ## Build analysis & bundle size
 
 `npm run build` prints a Vite warning: *"Some chunks are larger than 500 kB"*. This is expected and

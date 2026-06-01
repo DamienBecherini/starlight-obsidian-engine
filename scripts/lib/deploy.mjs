@@ -7,7 +7,9 @@ import { stdin as input, stdout as output } from 'node:process';
 import { Client as FtpClient } from 'basic-ftp';
 import SftpClient from 'ssh2-sftp-client';
 import { loadEnvFile } from '../../config/env.mjs';
-import { projectRoot, envVaultPath, resolveVaultPath } from '../../config/vault.mjs';
+import { projectRoot, resolveVaultGitRoot } from '../../config/vault.mjs';
+
+export { resolveVaultGitRoot };
 import { createUploadProgress, humanBytes } from './upload-progress.mjs';
 
 /**
@@ -51,20 +53,6 @@ export function assumeYesFromArgv(argv) {
  */
 export function confirmFromArgv(argv) {
     return Boolean(process.stdin.isTTY) && !assumeYesFromArgv(argv);
-}
-
-/** @returns {string} */
-export function resolveVaultGitRoot() {
-    const candidate = envVaultPath() ?? resolveVaultPath();
-    try {
-        const stat = fs.lstatSync(candidate);
-        if (stat.isSymbolicLink()) {
-            return fs.realpathSync(candidate);
-        }
-    } catch {
-        /* fall through */
-    }
-    return candidate;
 }
 
 /** Load deploy credentials from the vault `.env` (each vault may target a different host). */
