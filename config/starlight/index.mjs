@@ -7,7 +7,11 @@ const site = loadSiteConfig();
 /** Starlight integration — identity and navigation loaded from the vault (site.config.json). */
 export const starlightIntegration = starlight({
     title: site.title,
-    customCss: ['./src/styles/mermaid.css'],
+    customCss: [
+        './src/styles/mermaid.css',
+        'katex/dist/katex.min.css',
+        './src/styles/katex-starlight.css',
+    ],
     components: {
         Head: './src/components/Head.astro',
     },

@@ -1,0 +1,10 @@
+/* Empêche Starlight de tronquer fractions/racines KaTeX */
+.katex-html svg {
+    height: inherit !important;
+}
+
+/* Défilement horizontal pour les blocs display larges */
+.katex-display {
+    overflow-x: auto;
+    overflow-y: hidden;
+}

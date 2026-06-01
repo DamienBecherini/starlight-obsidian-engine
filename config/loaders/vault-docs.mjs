@@ -7,8 +7,8 @@ import { loadVaultGitignore, entryPathToVaultRelative } from '../gitignore.mjs';
  */
 
 /**
- * Wraps a Starlight/glob docs loader and removes entries matched by the vault `.gitignore`.
- * The `_private/` tree is always excluded from the build (never published to the web).
+ * Wraps a Starlight/glob docs loader and skips vault `.gitignore` paths (and vault-root
+ * README.md) **before** schema validation, then removes any matching entries from the store.
  *
  * @param {{ inner: Loader, vaultRoot: string, engineRoot: string }} options
  * @returns {Loader}
@@ -16,23 +16,44 @@ import { loadVaultGitignore, entryPathToVaultRelative } from '../gitignore.mjs';
 export function vaultAwareDocsLoader({ inner, vaultRoot, engineRoot }) {
     const isIgnored = loadVaultGitignore(vaultRoot);
 
+    /**
+     * @param {string | undefined} filePath Absolute or engine-relative path.
+     * @returns {boolean}
+     */
+    const shouldSkip = (filePath) => {
+        const vaultRel = entryPathToVaultRelative(filePath, engineRoot, vaultRoot);
+        return Boolean(vaultRel && isIgnored(vaultRel));
+    };
+
     return {
         name: 'vault-aware-docs-loader',
         load: async (/** @type {LoaderContext} */ context) => {
+            const originalParseData = context.parseData.bind(context);
+            /** @type {LoaderContext['parseData']} */
+            context.parseData = async (props) => {
+                if (shouldSkip(props.filePath)) {
+                    // Satisfy docsSchema so the inner loader does not abort; entry is dropped below.
+                    return originalParseData({
+                        ...props,
+                        data: { ...props.data, title: 'Excluded vault file', description: '' },
+                    });
+                }
+                return originalParseData(props);
+            };
+
             await inner.load(context);
 
             let excluded = 0;
             for (const id of [...context.store.keys()]) {
                 const entry = context.store.get(id);
-                const vaultRel = entryPathToVaultRelative(entry?.filePath, engineRoot, vaultRoot);
-                if (vaultRel && isIgnored(vaultRel)) {
+                if (shouldSkip(entry?.filePath)) {
                     context.store.delete(id);
                     excluded += 1;
                 }
             }
 
             if (excluded) {
-                context.logger.info(`Excluded ${excluded} gitignored doc(s) from build.`);
+                context.logger.info(`Excluded ${excluded} unpublished vault file(s) from build.`);
             }
         },
     };

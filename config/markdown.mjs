@@ -1,12 +1,15 @@
 // @ts-check
 import { unified } from '@astrojs/markdown-remark';
 import remarkWikiLink from 'remark-wiki-link';
+import remarkMath from 'remark-math';
 import rehypeExternalLinks from 'rehype-external-links';
+import rehypeKatex from 'rehype-katex';
 
-/** Markdown processor configuration (wiki links, external links). */
+/** Markdown processor configuration (wiki links, external links, math equations). */
 export const markdown = {
     processor: unified({
         remarkPlugins: [
+            remarkMath,
             [
                 remarkWikiLink,
                 {
@@ -16,6 +19,9 @@ export const markdown = {
                 },
             ],
         ],
-        rehypePlugins: [[rehypeExternalLinks, { target: '_blank', rel: ['noopener', 'noreferrer'] }]],
+        rehypePlugins: [
+            [rehypeKatex, { throwOnError: false, strict: false }],
+            [rehypeExternalLinks, { target: '_blank', rel: ['noopener', 'noreferrer'] }],
+        ],
     }),
 };

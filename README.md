@@ -327,7 +327,7 @@ With `--no-mirror`, gitignored pages already online are **not** deleted from the
 | `mermaid.core.*` | ~590 kB | a page contains any Mermaid diagram |
 | `wardley-*` | ~600 kB | a page contains a Wardley map |
 | `cytoscape.esm.*` | ~430 kB | architecture / cose-bilkent layouts |
-| `katex.*` | ~255 kB | math rendering |
+| `katex.*` | ~255 kB | a Mermaid diagram contains math labels (client-side, via `astro-mermaid`) |
 
 These are **lazily imported client-side** by `astro-mermaid` — they are fetched only on pages that
 actually render that diagram type, so they never weigh on the initial page load. They are also already
@@ -350,6 +350,9 @@ $env:ANALYZE="true"; npm run build; Remove-Item Env:\ANALYZE
 
 - **Mermaid** — `src/components/MermaidEnhancer.astro` + `src/styles/mermaid.css` (pan/zoom/fullscreen) on
   top of `astro-mermaid`. See the bundled debugging skill in `.agents/skills/astro-mermaid/`.
+- **Math (LaTeX)** — `remark-math` + `rehype-katex` (`config/markdown.mjs`) for Obsidian `$...$` /
+  `$$...$$` syntax, rendered at build time (no client JS). Styles: `katex/dist/katex.min.css` +
+  `src/styles/katex-starlight.css`.
 - **Wiki links** — `remark-wiki-link` (`config/markdown.mjs`) for Obsidian's `[[...]]` syntax.
 - **i18n** — locales and labels driven by `site.config.json`.
 
@@ -359,7 +362,7 @@ $env:ANALYZE="true"; npm run build; Remove-Item Env:\ANALYZE
 config/          engine config (vault resolution, site config loader, integrations, markdown, Starlight)
 scripts/         vault linking, pre-dev/build checks, publish (SFTP)
 src/components/  Head override + MermaidEnhancer
-src/styles/      Mermaid styles
+src/styles/      Mermaid + KaTeX Starlight overrides
 src/content.config.ts   content collection (docsLoader on the junction, glob otherwise)
 ```
 
