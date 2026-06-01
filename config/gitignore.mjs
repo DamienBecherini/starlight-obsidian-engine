@@ -6,6 +6,19 @@ import ignore from 'ignore';
 /** Vault folder for confidential notes — never published, even if negated in `.gitignore`. */
 const PRIVATE_PREFIX = '_private/';
 
+/** Vault-root repo docs — tracked on GitHub, never published as site pages. */
+const VAULT_META_BASENAMES = new Set(['readme.md', 'readme.txt']);
+
+/**
+ * @param {string} vaultRelativePosixPath
+ * @returns {boolean}
+ */
+function isVaultMetaFile(vaultRelativePosixPath) {
+    const normalized = vaultRelativePosixPath.replace(/\\/g, '/');
+    if (normalized.includes('/')) return false;
+    return VAULT_META_BASENAMES.has(normalized.toLowerCase());
+}
+
 /**
  * Loads the vault root `.gitignore` into a matcher function.
  * @param {string} vaultRoot Absolute path to the vault repository root.
@@ -20,6 +33,7 @@ export function loadVaultGitignore(vaultRoot) {
 
     return (vaultRelativePosixPath) => {
         if (!vaultRelativePosixPath) return false;
+        if (isVaultMetaFile(vaultRelativePosixPath)) return true;
         if (vaultRelativePosixPath === '_private' || vaultRelativePosixPath.startsWith(PRIVATE_PREFIX)) {
             return true;
         }

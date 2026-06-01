@@ -304,12 +304,13 @@ pages that were previously published but are now gitignored are **removed from t
 Convention in the vault:
 
 ```
+README.md          ← repository docs at the vault root (GitHub); never built as a site page
 _private/          ← confidential notes (gitignored except _private/README.md placeholder)
 .gitignore         ← any rule here also excludes files from the build
 ```
 
-The `_private/` folder is **always** excluded from the build, even if a file is negated in `.gitignore`
-for Git tracking (e.g. the placeholder README on GitHub).
+The vault-root `README.md` and the entire `_private/` tree are **always** excluded from the build, even
+if a file is negated in `.gitignore` for Git tracking (e.g. the `_private/README.md` placeholder).
 
 Add custom paths to the vault `.gitignore` for other unpublished content. Do not reference private pages
 in `site.config.json` sidebar.

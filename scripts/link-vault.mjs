@@ -31,7 +31,7 @@ if (fs.existsSync(linkPath)) {
     } else {
         const entries = fs.readdirSync(linkPath);
         const onlyPlaceholders = entries.every((e) =>
-            ['.gitkeep', 'README.txt', 'site.config.json'].includes(e),
+            ['.gitkeep', 'README.md', 'site.config.json'].includes(e),
         );
         if (!onlyPlaceholders) {
             console.error(
