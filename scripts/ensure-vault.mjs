@@ -6,7 +6,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execSync } from 'node:child_process';
-import { projectRoot, resolveVaultPath, envVaultPath } from '../config/vault.mjs';
+import { projectRoot, resolveVaultPath, envVaultPath, forceVaultPathFromEnv } from '../config/vault.mjs';
 const linkPath = path.join(projectRoot, 'src/content/docs');
 const targetVault = envVaultPath();
 
@@ -19,6 +19,7 @@ if (!fs.existsSync(vaultPath)) {
 }
 
 const needsLink =
+    !forceVaultPathFromEnv() &&
     !!targetVault &&
     fs.existsSync(targetVault) &&
     !fs.existsSync(linkPath) &&

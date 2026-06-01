@@ -23,6 +23,7 @@ const analyzePlugins = analyze
 // https://astro.build/config
 export default defineConfig({
     ...(siteUrl ? { site: siteUrl } : {}),
+    outDir: process.env.ASTRO_OUT_DIR?.trim() || 'dist',
     markdown,
     integrations,
     vite: {

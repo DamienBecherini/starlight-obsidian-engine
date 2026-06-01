@@ -97,6 +97,33 @@ if the site is local-only during development.
 | `npm run upload` | Remote upload only (existing `dist/`, no git, no build) |
 | `npm run auth:install` | Protect the live site with Apache Basic Auth (see [Private site](#private-site-basic-auth)) |
 | `npm run auth:remove` | Remove Basic Auth (make the site public again) |
+| `npm test` | Unit tests (deploy manifest, gitignore, auth, CLI flags) |
+| `npm run test:build` | Smoke build using `tests/fixtures/minimal-vault/` |
+
+## Tests
+
+Run the unit test suite (Node built-in test runner, no extra dependencies):
+
+```bash
+npm test
+```
+
+Smoke-build the Astro site against a minimal in-repo vault fixture (excludes `_private/` and
+`.gitignore` paths). Uses `FORCE_VAULT_PATH=1` so the fixture wins over the `src/content/docs`
+junction, and writes output to a disposable directory under `node_modules/.cache/` (never
+`dist/`, never the vault link):
+
+```bash
+npm run test:build
+```
+
+**Covered:** incremental deploy manifest diff, vault gitignore / `_private` filtering, vault docs
+loader exclusion, vault path override (`FORCE_VAULT_PATH`), deploy CLI flags, deploy config
+parsing (success paths), Apache `apr1` / htpasswd generation, upload progress formatting.
+
+**Not covered (by design):** real FTPS/SFTP transfers, interactive `publish.mjs` git prompts,
+browser-side Mermaid enhancer. CI runs `npm test` and `npm run test:build` on push/PR
+(`.github/workflows/ci.yml`).
 
 ## Publishing
 

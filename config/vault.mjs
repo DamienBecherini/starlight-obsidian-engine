@@ -23,16 +23,31 @@ export function envVaultPath() {
 }
 
 /**
+ * When true, `VAULT_PATH` wins over the `src/content/docs` junction (smoke tests, CI fixtures).
+ * Set `FORCE_VAULT_PATH=1` together with `VAULT_PATH`.
+ * @returns {boolean}
+ */
+export function forceVaultPathFromEnv() {
+    const raw = process.env.FORCE_VAULT_PATH?.trim().toLowerCase();
+    return raw === '1' || raw === 'true' || raw === 'yes';
+}
+
+/**
  * Resolves the absolute path of the Obsidian vault.
- * Priority: (1) junction/content under src/content/docs → (2) VAULT_PATH → (3) fallback src/content/docs
+ * Priority: (1) `VAULT_PATH` when `FORCE_VAULT_PATH=1` → (2) junction/content under
+ * `src/content/docs` → (3) `VAULT_PATH` → (4) fallback `src/content/docs`
  * @returns {string}
  */
 export function resolveVaultPath() {
+    const env = envVaultPath();
+    if (env && forceVaultPathFromEnv()) {
+        return env;
+    }
+
     if (hasMarkdownFiles(LINKED_DOCS)) {
         return LINKED_DOCS;
     }
 
-    const env = envVaultPath();
     if (env) {
         return env;
     }
@@ -46,7 +61,16 @@ export function resolveVaultPath() {
  * @returns {string}
  */
 export function resolveVaultGitRoot() {
-    const candidate = envVaultPath() ?? resolveVaultPath();
+    const env = envVaultPath();
+    if (env && forceVaultPathFromEnv()) {
+        try {
+            return fs.realpathSync(env);
+        } catch {
+            return env;
+        }
+    }
+
+    const candidate = env ?? resolveVaultPath();
     try {
         const stat = fs.lstatSync(candidate);
         if (stat.isSymbolicLink()) {

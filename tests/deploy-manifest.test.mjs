@@ -10,6 +10,8 @@ import {
     emptyManifest,
     ensureManifest,
     hashDistFile,
+    hashDistTree,
+    attachUploadAbsPaths,
     loadManifest,
     saveManifest,
 } from '../scripts/lib/deploy-manifest.mjs';
@@ -95,5 +97,36 @@ test('hashDistFile matches file bytes', async () => {
     const entry = await hashDistFile(filePath);
     assert.equal(entry.size, 5);
     assert.equal(entry.sha256.length, 64);
+    fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('hashDistTree skips dotfiles and hidden directories', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'deploy-manifest-tree-'));
+    fs.writeFileSync(path.join(dir, 'visible.txt'), 'ok');
+    fs.writeFileSync(path.join(dir, '.hidden'), 'skip');
+    fs.mkdirSync(path.join(dir, '.secret'));
+    fs.writeFileSync(path.join(dir, '.secret', 'nope.txt'), 'skip');
+
+    const local = await hashDistTree(dir);
+    assert.equal(local.size, 1);
+    assert.ok(local.has('visible.txt'));
+    fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('attachUploadAbsPaths fills absolute paths', () => {
+    const distDir = path.join(os.tmpdir(), 'dist-abs');
+    const diff = diffDistAgainstManifest(
+        new Map([['a.html', { sha256: 'aa', size: 1 }]]),
+        emptyManifest(config),
+    );
+    attachUploadAbsPaths(distDir, diff);
+    assert.equal(diff.toUpload[0].abs, path.join(distDir, 'a.html'));
+});
+
+test('loadManifest returns null for invalid JSON', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'deploy-manifest-invalid-'));
+    fs.writeFileSync(path.join(dir, '.deploy-manifest.json'), '{not json');
+    const loaded = loadManifest(dir);
+    assert.equal(loaded, null);
     fs.rmSync(dir, { recursive: true, force: true });
 });

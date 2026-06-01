@@ -16,7 +16,9 @@
     "upload": "node scripts/upload.mjs",
     "auth:install": "node scripts/auth-install.mjs",
     "auth:remove": "node scripts/auth-remove.mjs",
-    "test:deploy": "node --test tests/deploy-manifest.test.mjs tests/upload-progress.test.mjs"
+    "test": "node --test tests/**/*.test.mjs",
+    "test:deploy": "npm test",
+    "test:build": "node tests/smoke-build.mjs"
   },
   "dependencies": {
     "@astrojs/react": "^5.0.6",
