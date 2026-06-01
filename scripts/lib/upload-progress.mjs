@@ -48,6 +48,9 @@ function truncate(value, max = 38) {
  */
 export function createUploadProgress({ totalBytes = 0, totalFiles = 0 } = {}) {
     let lastLength = 0;
+    /** Monotonic byte counter (chunked FTPS resets per-session byte reports). */
+    let highWaterBytes = 0;
+    let highWaterFiles = 0;
 
     /**
      * @param {number} fraction
@@ -68,10 +71,11 @@ export function createUploadProgress({ totalBytes = 0, totalFiles = 0 } = {}) {
          * @param {string} [name]
          */
         onBytes(bytesOverall, name) {
-            const fraction = totalBytes ? bytesOverall / totalBytes : 0;
+            highWaterBytes = Math.max(highWaterBytes, bytesOverall);
+            const fraction = totalBytes ? highWaterBytes / totalBytes : 0;
             render(
                 fraction,
-                `${humanBytes(bytesOverall)} / ${humanBytes(totalBytes)}  ${truncate(name ?? '')}`,
+                `${humanBytes(highWaterBytes)} / ${humanBytes(totalBytes)}  ${truncate(name ?? '')}`,
             );
         },
         /**
@@ -80,8 +84,9 @@ export function createUploadProgress({ totalBytes = 0, totalFiles = 0 } = {}) {
          * @param {string} [name]
          */
         onFile(filesDone, name) {
-            const fraction = totalFiles ? filesDone / totalFiles : 0;
-            render(fraction, `${filesDone} / ${totalFiles} files  ${truncate(name ?? '')}`);
+            highWaterFiles = Math.max(highWaterFiles, filesDone);
+            const fraction = totalFiles ? highWaterFiles / totalFiles : 0;
+            render(fraction, `${highWaterFiles} / ${totalFiles} files  ${truncate(name ?? '')}`);
         },
         /** Clears the progress line so the next log starts fresh. */
         finish() {

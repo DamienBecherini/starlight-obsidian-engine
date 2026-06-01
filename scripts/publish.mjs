@@ -23,6 +23,7 @@ import { resolveVaultGitRoot, prepareDeployConfig, runBuild, uploadDist } from '
  * @property {string | null} commitMessage
  * @property {boolean} mirror
  * @property {boolean} assumeYes
+ * @property {boolean} incremental
  * @property {boolean} help
  */
 
@@ -42,7 +43,8 @@ Deploy credentials are read from the vault .env (see vault .env.example).
 Options:
   --skip-git                 Build + upload only (no git operations)
   --commit-message "text"    Auto-commit dirty repos with this message, then push
-  --no-mirror, --additive    Keep remote-only files (default mirrors: deletes them)
+  --full                     Full remote scan + upload all + mirror (legacy)
+  --no-mirror, --additive    Keep remote-only / skip orphan deletes (incremental default)
   --yes, -y                  Skip the upload confirmation prompt
   --help                     Show this help
 
@@ -63,11 +65,19 @@ Run from the vault with npm run publish — delegates to the engine (vault .env:
 /** @param {string[]} argv @returns {CliOptions} */
 function parseArgs(argv) {
     /** @type {CliOptions} */
-    const opts = { skipGit: false, commitMessage: null, mirror: true, assumeYes: false, help: false };
+    const opts = {
+        skipGit: false,
+        commitMessage: null,
+        mirror: true,
+        assumeYes: false,
+        incremental: true,
+        help: false,
+    };
     for (let i = 0; i < argv.length; i++) {
         const arg = argv[i];
         if (arg === '--help' || arg === '-h') opts.help = true;
         else if (arg === '--skip-git') opts.skipGit = true;
+        else if (arg === '--full') opts.incremental = false;
         else if (arg === '--no-mirror' || arg === '--additive') opts.mirror = false;
         else if (arg === '--yes' || arg === '-y') opts.assumeYes = true;
         else if (arg === '--commit-message') {
@@ -268,7 +278,7 @@ async function main() {
 
     runBuild();
     const confirm = Boolean(process.stdin.isTTY) && !opts.assumeYes;
-    await uploadDist(config, { mirror: opts.mirror, confirm });
+    await uploadDist(config, { mirror: opts.mirror, confirm, incremental: opts.incremental });
 }
 
 main();

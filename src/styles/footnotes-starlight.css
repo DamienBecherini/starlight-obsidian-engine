@@ -1,0 +1,54 @@
+/* Footnotes styling for published Starlight site */
+
+:root {
+    --zth-footnote-ref-color: #1d4ed8;
+    --zth-footnote-ref-hover-color: #1e40af;
+}
+
+:root[data-theme='dark'] {
+    --zth-footnote-ref-color: #93c5fd;
+    --zth-footnote-ref-hover-color: #bfdbfe;
+}
+
+/* In-text references: visible but subtle */
+.sl-markdown-content a[data-footnote-ref] {
+    color: var(--zth-footnote-ref-color) !important;
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.sl-markdown-content a[data-footnote-ref]::before {
+    content: '[';
+}
+
+.sl-markdown-content a[data-footnote-ref]::after {
+    content: ']';
+}
+
+.sl-markdown-content a[data-footnote-ref]:hover {
+    color: var(--zth-footnote-ref-hover-color) !important;
+    text-decoration: underline;
+    text-underline-offset: 0.15em;
+}
+
+/* Backrefs in footnotes list: same link behavior as in-text refs */
+.sl-markdown-content .footnotes a.footnote-backref,
+.sl-markdown-content .footnotes a[data-footnote-backref] {
+    color: var(--zth-footnote-ref-color) !important;
+    text-decoration: none;
+    font-size: 0.82em;
+    margin-left: 0.25em;
+}
+
+.sl-markdown-content .footnotes a.footnote-backref:hover,
+.sl-markdown-content .footnotes a[data-footnote-backref]:hover {
+    color: var(--zth-footnote-ref-hover-color) !important;
+    text-decoration: underline;
+    text-underline-offset: 0.15em;
+}
+
+/* Fallback when renderer outputs an empty backlink anchor */
+.sl-markdown-content .footnotes a.footnote-backref:empty::before,
+.sl-markdown-content .footnotes a[data-footnote-backref]:empty::before {
+    content: '↩';
+}

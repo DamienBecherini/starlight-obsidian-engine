@@ -183,21 +183,43 @@ When run in a terminal, each repo with **uncommitted changes** prompts:
 
 Repos that are clean but **ahead of origin** are pushed automatically.
 
+### Incremental deploy (default)
+
+By default, `deploy`, `upload`, and `publish` use a **local deploy manifest** in the vault:
+`.deploy-manifest.json` (gitignored). After `npm run build`, the engine hashes every file in `dist/`
+and compares it to the manifest from the last **successful** deploy:
+
+- **Upload** only new or changed files (no remote FTP listing — preview is instant).
+- **Delete** remote files that are no longer in `dist/` (obsolete `_astro` bundles, old Pagefind fragments, etc.).
+- **Update the manifest** after each file uploaded or deleted (safe to resume if FTPS drops mid-transfer).
+
+First deploy on a machine uploads everything and creates the manifest. If you change `DEPLOY_HOST` or
+`DEPLOY_REMOTE_PATH`, the manifest is reset automatically for the new target.
+
+Example preview:
+
+```
+🔍 Incremental deploy (local manifest)
+   Hashing dist/ … 274/274
+
+📋 Planned changes (incremental, local manifest):
+   + upload:     12 file(s) (420.5 KB)
+   ~ skip:       262 unchanged
+   − delete:     8 obsolete remote file(s)
+```
+
+### Full deploy (`--full`)
+
+Legacy behaviour: scan the remote tree (~10 s on FTPS), upload **all** of `dist/`, then mirror-walk
+the server to remove stale files. Regenerates the local manifest at the end. Use after manual edits on
+the host, a corrupted manifest, or when you want to resync from scratch:
+
+```bash
+npm run deploy -- --full
+npm run publish -- --full --yes
+```
+
 ### Preview & confirmation
-
-Before uploading, the engine connects to the remote, computes the diff and prints a preview, then asks
-for confirmation:
-
-```
-📋 Planned changes:
-   + new:        3 file(s)
-   ~ overwrite:  41 file(s)
-   − delete:     2 file(s) (mirror)
-       − old-page/index.html
-       − 02-legacy/notes/index.html
-
-Proceed with upload? (y/N)
-```
 
 The prompt appears when running in a terminal. Skip it with `--yes` (or `-y`) for non-interactive runs;
 in a non-TTY context (CI) the upload proceeds without prompting.
@@ -205,15 +227,13 @@ in a non-TTY context (CI) the upload proceeds without prompting.
 During the transfer the engine renders a single-line **progress bar** (by transferred bytes over FTPS,
 by file count over SFTP). It is shown only in an interactive terminal; piped/CI logs stay clean.
 
-### Mirror mode (default)
+### Orphan cleanup & `--no-mirror`
 
-By default, every upload **mirrors** the remote directory: after uploading, remote files that no longer
-exist locally are **deleted** (no stale pages). Dotfiles and dot-directories are never touched, so a
-server-managed `.htaccess`, `.well-known/`, etc. stay safe. Over **FTPS** the chrooted site root (`/`) is
-mirrored with the extra protected entries (`DEPLOY_PROTECT`, default `cgi-bin`). Over **SFTP** the engine
-refuses to mirror the real server root, so `DEPLOY_REMOTE_PATH` must be a dedicated directory.
+By default, incremental deploy **deletes obsolete remote files** tracked in the manifest (same goal as
+mirror, without a full remote tree walk). Dotfiles and top-level protected entries (`DEPLOY_PROTECT`,
+default `cgi-bin`) are never touched.
 
-Disable mirroring (additive upload, keep remote-only files) on any command:
+Keep obsolete remote files (additive upload):
 
 ```bash
 npm run upload -- --no-mirror     # alias: --additive
@@ -242,10 +262,10 @@ npm run publish
   ├─ Vault git  (cancel / commit / skip / push if ahead)
   ├─ Engine git (same)
   ├─ npm run build
-  └─ FTPS or SFTP upload dist/ + mirror  (credentials from vault .env)
+  └─ incremental FTPS/SFTP upload (vault .deploy-manifest.json)
 
-npm run deploy  →  validate config → build → upload + mirror
-npm run upload  →  validate config → upload + mirror (dist/ must already exist)
+npm run deploy  →  validate config → build → incremental upload (manifest)
+npm run upload  →  validate config → incremental upload (dist/ must already exist; run build first)
 ```
 
 ### Private site (Basic Auth)

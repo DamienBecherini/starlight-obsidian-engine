@@ -11,6 +11,13 @@ import { projectRoot, resolveVaultGitRoot } from '../../config/vault.mjs';
 
 export { resolveVaultGitRoot };
 import { createUploadProgress, humanBytes } from './upload-progress.mjs';
+import {
+    planIncrementalDeploy,
+    manifestFromLocal,
+    hashDistTree,
+    markUploaded,
+    markDeleted,
+} from './deploy-manifest.mjs';
 
 /**
  * @typedef {'ftps' | 'sftp'} DeployProtocol
@@ -53,6 +60,15 @@ export function assumeYesFromArgv(argv) {
  */
 export function confirmFromArgv(argv) {
     return Boolean(process.stdin.isTTY) && !assumeYesFromArgv(argv);
+}
+
+/**
+ * Incremental manifest deploy is default; `--full` restores scan + upload all + mirror.
+ * @param {string[]} argv
+ * @returns {{ incremental: boolean }}
+ */
+export function deployModeFromArgv(argv) {
+    return { incremental: !argv.includes('--full') };
 }
 
 /** Load deploy credentials from the vault `.env` (each vault may target a different host). */
@@ -196,6 +212,55 @@ function listLocalFiles(distDir) {
     return files;
 }
 
+/** @param {string} dir @returns {number} */
+function countLocalFiles(dir) {
+    let total = 0;
+    /** @param {string} d */
+    const walk = (d) => {
+        for (const entry of fs.readdirSync(d, { withFileTypes: true })) {
+            if (isHidden(entry.name)) continue;
+            const abs = path.join(d, entry.name);
+            if (entry.isDirectory()) walk(abs);
+            else if (entry.isFile()) total += 1;
+        }
+    };
+    walk(dir);
+    return total;
+}
+
+/** @param {string} dir @returns {boolean} */
+function isFlatLocalDir(dir) {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (isHidden(entry.name)) continue;
+        if (entry.isDirectory()) return false;
+    }
+    return true;
+}
+
+/** @param {DeployConfig} config */
+function ftpsAccessOptions(config) {
+    return {
+        host: config.host,
+        port: config.port,
+        user: config.username,
+        password: config.password,
+        secure: true,
+        secureOptions: config.ftpsInsecure ? { rejectUnauthorized: false } : undefined,
+    };
+}
+
+/** @param {unknown} error */
+function isFtpsTransientError(error) {
+    const err = error instanceof Error ? error : null;
+    if (!err) return false;
+    const code = 'code' in err && typeof err.code === 'string' ? err.code : '';
+    if (code === 'ECONNRESET' || code === 'ETIMEDOUT' || code === 'EPIPE' || code === 'ECONNABORTED') {
+        return true;
+    }
+    const msg = err.message.toLowerCase();
+    return msg.includes('econnreset') || msg.includes('control socket') || msg.includes('timeout');
+}
+
 /**
  * Sums the byte size of every file the upload will transfer (mirrors the upload filter).
  * @param {string} distDir
@@ -254,12 +319,103 @@ function printPreview(created, overwritten, deletions, mirror) {
 }
 
 /**
+ * @param {import('./deploy-manifest.mjs').ManifestDiff} diff
+ * @param {boolean} deleteEnabled
+ */
+function printIncrementalPreview(diff, deleteEnabled) {
+    const SAMPLE = 50;
+    const uploadRels = diff.toUpload.map((u) => u.rel);
+    const uploadBytes = diff.toUpload.reduce((s, u) => s + u.entry.size, 0);
+    console.log('\n📋 Planned changes (incremental, local manifest):');
+    console.log(`   + upload:     ${uploadRels.length} file(s) (${humanBytes(uploadBytes)})`);
+    console.log(`   ~ skip:       ${diff.unchanged} unchanged`);
+    if (deleteEnabled) {
+        console.log(`   − delete:     ${diff.toDelete.length} obsolete remote file(s)`);
+        for (const f of diff.toDelete.slice(0, SAMPLE)) console.log(`       − ${f}`);
+        if (diff.toDelete.length > SAMPLE) {
+            console.log(`       … and ${diff.toDelete.length - SAMPLE} more`);
+        }
+    } else {
+        console.log('   − delete:     0 (--no-mirror: obsolete remote files kept)');
+    }
+}
+
+/**
+ * @param {string} normalizedRemote
+ * @param {string} rel
+ */
+function sftpRemotePath(normalizedRemote, rel) {
+    const base = normalizedRemote.replace(/\/+$/, '');
+    return base ? `${base}/${rel}` : rel;
+}
+
+/**
+ * @param {SftpClient} sftp
+ * @param {string} normalizedRemote
+ * @param {string} rel
+ */
+async function ensureSftpDirs(sftp, normalizedRemote, rel) {
+    const parent = path.posix.dirname(rel);
+    if (parent === '.') return;
+    const parts = parent.split('/');
+    let built = normalizedRemote.replace(/\/+$/, '');
+    for (const part of parts) {
+        built = built ? `${built}/${part}` : part;
+        try {
+            await sftp.mkdir(built, true);
+        } catch {
+            /* exists */
+        }
+    }
+}
+
+/**
+ * @param {SftpClient} sftp
+ * @param {string} normalizedRemote
+ * @param {import('./deploy-manifest.mjs').ManifestDiff['toUpload']} uploads
+ * @param {import('./deploy-manifest.mjs').DeployManifest} manifest
+ * @param {{ lastFile: string, bytesOverall: number, fileOrdinal: number }} transferState
+ */
+async function uploadSelectedFilesSftp(sftp, normalizedRemote, uploads, manifest, transferState) {
+    const vaultRoot = resolveVaultGitRoot();
+    const progress = createUploadProgress({ totalFiles: uploads.length });
+    let done = 0;
+    for (const { rel, abs, entry } of uploads) {
+        await ensureSftpDirs(sftp, normalizedRemote, rel);
+        await sftp.put(abs, sftpRemotePath(normalizedRemote, rel));
+        markUploaded(manifest, rel, entry, vaultRoot);
+        done += 1;
+        transferState.fileOrdinal = done;
+        transferState.lastFile = path.basename(rel);
+        progress.onFile(done, rel);
+    }
+    progress.finish();
+}
+
+/**
+ * @param {SftpClient} sftp
+ * @param {string} normalizedRemote
+ * @param {string[]} relPaths
+ * @param {Set<string>} protect
+ * @param {import('./deploy-manifest.mjs').DeployManifest} manifest
+ */
+async function deleteRemoteFilesSftp(sftp, normalizedRemote, relPaths, protect, manifest) {
+    const vaultRoot = resolveVaultGitRoot();
+    for (const rel of relPaths) {
+        if (isProtectedRel(rel, protect)) continue;
+        await sftp.delete(sftpRemotePath(normalizedRemote, rel));
+        markDeleted(manifest, rel, vaultRoot);
+        console.log(`  − ${rel}`);
+    }
+}
+
+/**
  * @param {DeployConfig} config
  * @param {string} distDir
  * @param {boolean} mirror
  * @param {boolean} askConfirm
  */
-async function uploadDistSftp(config, distDir, mirror, askConfirm) {
+async function uploadDistSftpFull(config, distDir, mirror, askConfirm) {
     const normalizedRemote = config.remotePath.replace(/\/+$/, '');
     const mirrorActive = mirror && Boolean(normalizedRemote);
     const localFiles = listLocalFiles(distDir);
@@ -299,7 +455,7 @@ async function uploadDistSftp(config, distDir, mirror, askConfirm) {
             }
         }
 
-        console.log(`\n🚀 Uploading dist/ → sftp://${config.host}:${config.port}${config.remotePath} …`);
+        console.log(`\n🚀 Full upload dist/ → sftp://${config.host}:${config.port}${config.remotePath} …`);
         const progress = createUploadProgress({ totalFiles: localFiles.size });
         let uploaded = 0;
         /** @param {{ source: string }} info */
@@ -325,11 +481,106 @@ async function uploadDistSftp(config, distDir, mirror, askConfirm) {
         } else if (!mirror) {
             console.log('ℹ️  Mirror disabled (--no-mirror): remote-only files were kept.');
         }
+
+        console.log('\n📝 Refreshing deploy manifest from dist/…');
+        const local = await hashDistTree(distDir);
+        manifestFromLocal(config, local);
+        console.log('✅ Manifest updated.');
     } catch (error) {
         console.error('❌ SFTP upload failed:', error);
         process.exit(1);
     } finally {
         await sftp.end();
+    }
+}
+
+/**
+ * @param {DeployConfig} config
+ * @param {string} distDir
+ * @param {boolean} mirror
+ * @param {boolean} askConfirm
+ */
+async function uploadDistSftpIncremental(config, distDir, mirror, askConfirm) {
+    const normalizedRemote = config.remotePath.replace(/\/+$/, '');
+    const deleteEnabled = mirror && Boolean(normalizedRemote);
+    const protect = new Set(config.protect ?? []);
+    const sftp = new SftpClient();
+    /** @type {{ lastFile: string, bytesOverall: number, fileOrdinal: number }} */
+    const transferState = { lastFile: '', bytesOverall: 0, fileOrdinal: 0 };
+
+    try {
+        console.log('\n🔍 Incremental deploy (local manifest)…');
+        const { manifest, diff } = await planIncrementalDeploy(distDir, config, (done, total, rel) => {
+            if (done === 1 || done === total || done % 50 === 0) {
+                process.stdout.write(`\r   Hashing dist/ … ${done}/${total}  ${rel.slice(-40).padStart(40)}`);
+            }
+        });
+        if (process.stdout.isTTY) process.stdout.write('\n');
+
+        await sftp.connect({
+            host: config.host,
+            port: config.port,
+            username: config.username,
+            password: config.password,
+            privateKey: config.privateKey,
+            passphrase: config.passphrase,
+        });
+
+        console.log(`\nTarget: sftp://${config.host}:${config.port}${config.remotePath}`);
+        if (protect.size) console.log(`Protected (never touched): ${[...protect].join(', ')}, dotfiles`);
+        printIncrementalPreview(diff, deleteEnabled);
+
+        if (!diff.toUpload.length && (!deleteEnabled || !diff.toDelete.length)) {
+            console.log('\n✅ Nothing to deploy — dist/ matches the last successful manifest.');
+            return;
+        }
+
+        if (askConfirm) {
+            const ok = await confirm('\nProceed with upload? (y/N) ');
+            if (!ok) {
+                console.log('Upload cancelled.');
+                return;
+            }
+        }
+
+        if (diff.toUpload.length) {
+            const uploadBytes = diff.toUpload.reduce((s, u) => s + u.entry.size, 0);
+            console.log(
+                `\n🚀 Uploading ${diff.toUpload.length} file(s) (${humanBytes(uploadBytes)}) → sftp://${config.host}:${config.port} …`,
+            );
+            await uploadSelectedFilesSftp(sftp, normalizedRemote, diff.toUpload, manifest, transferState);
+            console.log('✅ Upload complete.');
+        }
+
+        if (deleteEnabled && diff.toDelete.length) {
+            console.log(`\n🧹 Removing ${diff.toDelete.length} obsolete remote file(s)…`);
+            await deleteRemoteFilesSftp(sftp, normalizedRemote, diff.toDelete, protect, manifest);
+            console.log('✅ Cleanup complete.');
+        } else if (!deleteEnabled && diff.toDelete.length) {
+            console.log(
+                `ℹ️  ${diff.toDelete.length} obsolete remote file(s) kept (--no-mirror). Use default mirror or --full to clean up.`,
+            );
+        }
+    } catch (error) {
+        console.error('❌ SFTP upload failed:', error);
+        process.exit(1);
+    } finally {
+        await sftp.end();
+    }
+}
+
+/**
+ * @param {DeployConfig} config
+ * @param {string} distDir
+ * @param {boolean} mirror
+ * @param {boolean} askConfirm
+ * @param {boolean} incremental
+ */
+async function uploadDistSftp(config, distDir, mirror, askConfirm, incremental) {
+    if (incremental) {
+        await uploadDistSftpIncremental(config, distDir, mirror, askConfirm);
+    } else {
+        await uploadDistSftpFull(config, distDir, mirror, askConfirm);
     }
 }
 
@@ -429,8 +680,10 @@ async function listRemoteFilesFtps(client, remoteRoot, protect) {
  * @param {Set<string>} protect Top-level names never deleted.
  */
 async function mirrorRemoteFtps(client, remoteRoot, localFiles, protect) {
+    /** @type {string[]} */
+    const pendingDeletes = [];
     /** @param {string} remoteDir @param {string} rel */
-    const walk = async (remoteDir, rel) => {
+    const collect = async (remoteDir, rel) => {
         let entries;
         try {
             entries = await client.list(remoteDir);
@@ -442,20 +695,347 @@ async function mirrorRemoteFtps(client, remoteRoot, localFiles, protect) {
             if (rel === '' && protect.has(entry.name)) continue;
             const remotePath = joinRemote(remoteDir, entry.name);
             const relPath = rel ? `${rel}/${entry.name}` : entry.name;
-            if (entry.isDirectory) {
-                await walk(remotePath, relPath);
-                const remaining = (await client.list(remotePath)).filter((e) => !isHidden(e.name));
-                if (remaining.length === 0) {
-                    await client.removeDir(remotePath);
-                    console.log(`  − ${relPath}/`);
-                }
-            } else if (entry.isFile && !localFiles.has(relPath)) {
-                await client.remove(remotePath);
-                console.log(`  − ${relPath}`);
+            if (entry.isDirectory) await collect(remotePath, relPath);
+            else if (entry.isFile && !localFiles.has(relPath)) pendingDeletes.push(relPath);
+        }
+    };
+    console.log('   Scanning remote tree (FTP listings, may take a minute)…');
+    await collect(remoteRoot, '');
+    if (!pendingDeletes.length) return;
+    console.log(`   Removing ${pendingDeletes.length} obsolete file(s)…`);
+    let removed = 0;
+    for (const relPath of pendingDeletes.sort()) {
+        const remotePath = joinRemote(remoteRoot, relPath);
+        await client.remove(remotePath);
+        removed += 1;
+        console.log(`  − ${relPath}`);
+        if (removed % 20 === 0 && removed < pendingDeletes.length) {
+            console.log(`   … ${removed} / ${pendingDeletes.length} removed`);
+        }
+    }
+    /** @param {string} remoteDir @param {string} rel */
+    const pruneEmptyDirs = async (remoteDir, rel) => {
+        let entries;
+        try {
+            entries = await client.list(remoteDir);
+        } catch {
+            return;
+        }
+        for (const entry of entries) {
+            if (isHidden(entry.name)) continue;
+            if (rel === '' && protect.has(entry.name)) continue;
+            const remotePath = joinRemote(remoteDir, entry.name);
+            const relPath = rel ? `${rel}/${entry.name}` : entry.name;
+            if (!entry.isDirectory) continue;
+            await pruneEmptyDirs(remotePath, relPath);
+            const remaining = (await client.list(remotePath)).filter((e) => !isHidden(e.name));
+            if (remaining.length === 0) {
+                await client.removeDir(remotePath);
+                console.log(`  − ${relPath}/`);
             }
         }
     };
-    await walk(remoteRoot, '');
+    await pruneEmptyDirs(remoteRoot, '');
+}
+
+/**
+ * Shared hosts (o2switch) drop FTPS after ~90+ passive channels on one control session.
+ * Stay under that per session; split flat folders (e.g. `_astro`) into smaller batches.
+ */
+const FTPS_MAX_FILES_PER_SESSION = 45;
+
+/**
+ * @param {{ client: FtpClient }} session
+ * @param {DeployConfig} config
+ * @param {string} remoteBase
+ */
+async function prepareFtpsCwd(session, config, remoteBase) {
+    if (remoteBase !== '/') await session.client.ensureDir(remoteBase);
+    await session.client.cd(remoteBase);
+}
+
+/**
+ * @param {{ client: FtpClient }} session
+ * @param {DeployConfig} config
+ * @param {string} remoteBase
+ */
+async function refreshFtpsSession(session, config, remoteBase) {
+    session.client.trackProgress();
+    try {
+        session.client.close();
+    } catch {
+        /* ignore */
+    }
+    session.client = new FtpClient(120_000);
+    await session.client.access(ftpsAccessOptions(config));
+    await prepareFtpsCwd(session, config, remoteBase);
+}
+
+/**
+ * @param {{ client: FtpClient }} session
+ * @param {string} localPath
+ * @param {string} remoteName
+ * @param {((name: string) => boolean) | undefined} filter
+ */
+async function ftpsUploadFromDirOnce(session, localPath, remoteName, filter) {
+    await session.client.uploadFromDir(localPath, remoteName, filter ? { filter } : undefined);
+}
+
+/**
+ * @param {{ client: FtpClient }} session
+ * @param {DeployConfig} config
+ * @param {string} remoteBase
+ * @param {string} localPath
+ * @param {string} remoteName
+ * @param {((name: string) => boolean) | undefined} filter
+ */
+async function ftpsUploadFromDirWithRetry(session, config, remoteBase, localPath, remoteName, filter) {
+    for (let attempt = 0; attempt < 4; attempt++) {
+        try {
+            await ftpsUploadFromDirOnce(session, localPath, remoteName, filter);
+            return;
+        } catch (error) {
+            if (isFtpsTransientError(error) && attempt < 3) {
+                await refreshFtpsSession(session, config, remoteBase);
+                continue;
+            }
+            throw error;
+        }
+    }
+}
+
+/**
+ * @param {string} rel
+ * @param {Set<string>} protect
+ * @returns {boolean}
+ */
+function isProtectedRel(rel, protect) {
+    const top = rel.split('/')[0];
+    return protect.has(top);
+}
+
+/**
+ * @param {{ client: FtpClient }} session
+ * @param {DeployConfig} config
+ * @param {string} remoteBase
+ * @param {import('./deploy-manifest.mjs').ManifestDiff['toUpload']} uploads
+ * @param {import('./deploy-manifest.mjs').DeployManifest} manifest
+ * @param {{ lastFile: string, bytesOverall: number, fileOrdinal: number }} transferState
+ */
+async function uploadSelectedFilesFtps(session, config, remoteBase, uploads, manifest, transferState) {
+    const vaultRoot = resolveVaultGitRoot();
+    const totalBytes = uploads.reduce((s, u) => s + u.entry.size, 0);
+    const progress = createUploadProgress({ totalBytes });
+    let bytesDone = 0;
+    let filesSinceReconnect = 0;
+
+    const attachProgress = () => {
+        session.client.trackProgress((info) => {
+            progress.onBytes(bytesDone + info.bytesOverall, info.name);
+            if (info.name) transferState.lastFile = info.name;
+        });
+    };
+
+    await prepareFtpsCwd(session, config, remoteBase);
+    attachProgress();
+
+    for (let i = 0; i < uploads.length; i++) {
+        const { rel, abs, entry } = uploads[i];
+        let done = false;
+        for (let attempt = 0; attempt < 4 && !done; attempt++) {
+            try {
+                if (filesSinceReconnect >= FTPS_MAX_FILES_PER_SESSION) {
+                    session.client.trackProgress();
+                    await refreshFtpsSession(session, config, remoteBase);
+                    attachProgress();
+                    filesSinceReconnect = 0;
+                }
+                const parent = path.posix.dirname(rel);
+                const name = path.posix.basename(rel);
+                if (parent !== '.') {
+                    await session.client.ensureDir(parent);
+                    await session.client.cd(parent);
+                }
+                await session.client.uploadFrom(abs, name);
+                await prepareFtpsCwd(session, config, remoteBase);
+                markUploaded(manifest, rel, entry, vaultRoot);
+                bytesDone += entry.size;
+                transferState.bytesOverall = bytesDone;
+                transferState.fileOrdinal = i + 1;
+                filesSinceReconnect += 1;
+                done = true;
+            } catch (error) {
+                session.client.trackProgress();
+                if (isFtpsTransientError(error) && attempt < 3) {
+                    await refreshFtpsSession(session, config, remoteBase);
+                    attachProgress();
+                    filesSinceReconnect = 0;
+                    continue;
+                }
+                throw error;
+            }
+        }
+    }
+
+    session.client.trackProgress();
+    progress.finish();
+}
+
+/**
+ * @param {{ client: FtpClient }} session
+ * @param {DeployConfig} config
+ * @param {string} remoteBase
+ * @param {string[]} relPaths
+ * @param {Set<string>} protect
+ * @param {import('./deploy-manifest.mjs').DeployManifest} manifest
+ */
+async function deleteRemoteFilesFtps(session, config, remoteBase, relPaths, protect, manifest) {
+    const vaultRoot = resolveVaultGitRoot();
+    const toRemove = relPaths.filter((rel) => !isProtectedRel(rel, protect));
+    if (!toRemove.length) return;
+
+    let filesSinceReconnect = 0;
+    await prepareFtpsCwd(session, config, remoteBase);
+
+    for (let i = 0; i < toRemove.length; i++) {
+        const rel = toRemove[i];
+        let done = false;
+        for (let attempt = 0; attempt < 4 && !done; attempt++) {
+            try {
+                if (filesSinceReconnect >= FTPS_MAX_FILES_PER_SESSION) {
+                    await refreshFtpsSession(session, config, remoteBase);
+                    filesSinceReconnect = 0;
+                }
+                await session.client.remove(rel);
+                markDeleted(manifest, rel, vaultRoot);
+                console.log(`  − ${rel}`);
+                filesSinceReconnect += 1;
+                done = true;
+            } catch (error) {
+                if (isFtpsTransientError(error) && attempt < 3) {
+                    await refreshFtpsSession(session, config, remoteBase);
+                    filesSinceReconnect = 0;
+                    continue;
+                }
+                throw error;
+            }
+        }
+    }
+}
+
+/**
+ * Upload dist/ using uploadFromDir (compatible with chrooted hosts), fresh session per chunk.
+ * @param {{ client: FtpClient }} session
+ * @param {DeployConfig} config
+ * @param {string} distDir
+ * @param {string} remoteBase
+ * @param {number} totalBytes
+ * @param {{ lastFile: string, bytesOverall: number, fileOrdinal: number }} transferState
+ */
+async function uploadDistResilientFtps(session, config, distDir, remoteBase, totalBytes, transferState) {
+    const progress = createUploadProgress({ totalBytes });
+    let bytesDone = 0;
+
+    /** @param {string} [chunkLabel] */
+    const attachProgress = (chunkLabel) => {
+        progress.onBytes(bytesDone, chunkLabel ? `[${chunkLabel}]` : '');
+        session.client.trackProgress((info) => {
+            progress.onBytes(bytesDone + info.bytesOverall, info.name);
+            if (info.name) transferState.lastFile = info.name;
+        });
+    };
+
+    const detachProgress = () => {
+        session.client.trackProgress();
+        progress.onBytes(bytesDone, '');
+    };
+
+    const topEntries = fs
+        .readdirSync(distDir, { withFileTypes: true })
+        .filter((e) => !isHidden(e.name))
+        .sort((a, b) => a.name.localeCompare(b.name));
+
+    await prepareFtpsCwd(session, config, remoteBase);
+
+    for (let i = 0; i < topEntries.length; i++) {
+        const entry = topEntries[i];
+        const localPath = path.join(distDir, entry.name);
+        const chunkLabel = entry.name;
+
+        if (i > 0) {
+            await refreshFtpsSession(session, config, remoteBase);
+        }
+
+        if (entry.isFile()) {
+            attachProgress(chunkLabel);
+            try {
+                await session.client.uploadFrom(localPath, entry.name);
+            } finally {
+                detachProgress();
+            }
+            bytesDone += fs.statSync(localPath).size;
+            transferState.fileOrdinal += 1;
+            transferState.bytesOverall = bytesDone;
+            continue;
+        }
+
+        if (!entry.isDirectory()) continue;
+
+        const fileCount = countLocalFiles(localPath);
+        const hiddenFilter = (name) => !isHidden(name);
+
+        if (fileCount <= FTPS_MAX_FILES_PER_SESSION || !isFlatLocalDir(localPath)) {
+            attachProgress(chunkLabel);
+            try {
+                await ftpsUploadFromDirWithRetry(
+                    session,
+                    config,
+                    remoteBase,
+                    localPath,
+                    entry.name,
+                    hiddenFilter,
+                );
+            } finally {
+                detachProgress();
+            }
+            bytesDone += sumLocalBytes(localPath);
+            transferState.fileOrdinal += 1;
+            transferState.bytesOverall = bytesDone;
+            continue;
+        }
+
+        const names = fs
+            .readdirSync(localPath)
+            .filter((n) => !isHidden(n))
+            .sort((a, b) => a.localeCompare(b));
+        for (let b = 0; b < names.length; b += FTPS_MAX_FILES_PER_SESSION) {
+            const batch = names.slice(b, b + FTPS_MAX_FILES_PER_SESSION);
+            const batchSet = new Set(batch);
+            if (b > 0) {
+                await refreshFtpsSession(session, config, remoteBase);
+            }
+            attachProgress(`${chunkLabel} (${Math.floor(b / FTPS_MAX_FILES_PER_SESSION) + 1})`);
+            try {
+                await ftpsUploadFromDirWithRetry(
+                    session,
+                    config,
+                    remoteBase,
+                    localPath,
+                    entry.name,
+                    (name) => batchSet.has(name),
+                );
+            } finally {
+                detachProgress();
+            }
+            for (const name of batch) {
+                bytesDone += fs.statSync(path.join(localPath, name)).size;
+            }
+            transferState.bytesOverall = bytesDone;
+        }
+        transferState.fileOrdinal += 1;
+    }
+
+    progress.finish();
 }
 
 /**
@@ -464,26 +1044,19 @@ async function mirrorRemoteFtps(client, remoteRoot, localFiles, protect) {
  * @param {boolean} mirror
  * @param {boolean} askConfirm
  */
-async function uploadDistFtps(config, distDir, mirror, askConfirm) {
-    // FTP accounts are chrooted to their own space, so `/` is the site root (safe to mirror).
+async function uploadDistFtpsFull(config, distDir, mirror, askConfirm) {
     const remoteBase = config.remotePath.replace(/\/+$/, '') || '/';
     const mirrorActive = mirror;
     const protect = new Set(config.protect ?? []);
     const localFiles = listLocalFiles(distDir);
-    const client = new FtpClient(120_000);
+    /** @type {{ client: FtpClient }} */
+    const session = { client: new FtpClient(120_000) };
+    /** @type {{ lastFile: string, bytesOverall: number, fileOrdinal: number }} */
+    const transferState = { lastFile: '', bytesOverall: 0, fileOrdinal: 0 };
 
     try {
-        await client.access({
-            host: config.host,
-            port: config.port,
-            user: config.username,
-            password: config.password,
-            secure: true,
-            secureOptions: config.ftpsInsecure ? { rejectUnauthorized: false } : undefined,
-        });
-
-        // Resolve where the FTP account actually lands (login dir) so the target is unambiguous.
-        const loginDir = await client.pwd();
+        await session.client.access(ftpsAccessOptions(config));
+        const loginDir = await session.client.pwd();
         const absoluteTarget =
             remoteBase === '/'
                 ? loginDir.replace(/\/+$/, '') || '/'
@@ -492,33 +1065,22 @@ async function uploadDistFtps(config, distDir, mirror, askConfirm) {
         const totalBytes = sumLocalBytes(distDir);
         const doUpload = async () => {
             console.log(
-                `\n🚀 Uploading dist/ (${humanBytes(totalBytes)}) → ftps://${config.host}:${config.port} (${absoluteTarget}) …`,
+                `\n🚀 Full upload dist/ (${humanBytes(totalBytes)}) → ftps://${config.host}:${config.port} (${absoluteTarget}) …`,
             );
-            if (remoteBase !== '/') await client.ensureDir(remoteBase);
-            await client.cd(remoteBase);
-            const progress = createUploadProgress({ totalBytes });
-            client.trackProgress((info) => progress.onBytes(info.bytesOverall, info.name));
-            try {
-                await client.uploadFromDir(distDir, remoteBase, {
-                    filter: (name) => !isHidden(name),
-                });
-            } finally {
-                client.trackProgress();
-                progress.finish();
-            }
+            await uploadDistResilientFtps(session, config, distDir, remoteBase, totalBytes, transferState);
             console.log('✅ Upload complete.');
         };
 
         const doMirror = mirrorActive
             ? async () => {
                   console.log('\n🧹 Mirror: removing remote files not present locally…');
-                  await mirrorRemoteFtps(client, remoteBase, localFiles, protect);
+                  await mirrorRemoteFtps(session.client, remoteBase, localFiles, protect);
                   console.log('✅ Mirror complete.');
               }
             : undefined;
 
         if (askConfirm || mirrorActive) {
-            const remoteFiles = await listRemoteFilesFtps(client, remoteBase, protect);
+            const remoteFiles = await listRemoteFilesFtps(session.client, remoteBase, protect);
             const created = [...localFiles].filter((f) => !remoteFiles.has(f));
             const overwritten = localFiles.size - created.length;
             const deletions = mirrorActive
@@ -533,11 +1095,12 @@ async function uploadDistFtps(config, distDir, mirror, askConfirm) {
                 const ok = await confirm('\nProceed with upload? (y/N) ');
                 if (!ok) {
                     console.log('Upload cancelled.');
-                    client.close();
+                    session.client.close();
                     process.exit(0);
                 }
             }
 
+            await refreshFtpsSession(session, config, remoteBase);
             await doUpload();
             if (doMirror) await doMirror();
         } else {
@@ -546,26 +1109,129 @@ async function uploadDistFtps(config, distDir, mirror, askConfirm) {
                 console.log('ℹ️  Mirror disabled (--no-mirror): remote-only files were kept.');
             }
         }
+
+        console.log('\n📝 Refreshing deploy manifest from dist/…');
+        const local = await hashDistTree(distDir);
+        manifestFromLocal(config, local);
+        console.log('✅ Manifest updated.');
     } catch (error) {
-        const msg = error instanceof Error ? error.message : String(error);
-        if (msg.includes('CERT') || msg.includes('certificate') || msg.includes('altnames')) {
-            console.error('❌ FTPS upload failed: TLS certificate does not match the FTP hostname.');
-            console.error('   FileZilla often ignores this; set DEPLOY_FTPS_INSECURE=true in the vault .env');
-        } else {
-            console.error('❌ FTPS upload failed:', error);
-        }
-        process.exit(1);
+        handleFtpsUploadError(error);
     } finally {
-        client.close();
+        session.client.close();
+    }
+}
+
+/**
+ * @param {DeployConfig} config
+ * @param {string} distDir
+ * @param {boolean} mirror
+ * @param {boolean} askConfirm
+ */
+async function uploadDistFtpsIncremental(config, distDir, mirror, askConfirm) {
+    const remoteBase = config.remotePath.replace(/\/+$/, '') || '/';
+    const deleteEnabled = mirror;
+    const protect = new Set(config.protect ?? []);
+    /** @type {{ client: FtpClient }} */
+    const session = { client: new FtpClient(120_000) };
+    /** @type {{ lastFile: string, bytesOverall: number, fileOrdinal: number }} */
+    const transferState = { lastFile: '', bytesOverall: 0, fileOrdinal: 0 };
+
+    try {
+        console.log('\n🔍 Incremental deploy (local manifest)…');
+        const { manifest, diff } = await planIncrementalDeploy(distDir, config, (done, total, rel) => {
+            if (done === 1 || done === total || done % 50 === 0) {
+                process.stdout.write(`\r   Hashing dist/ … ${done}/${total}  ${rel.slice(-40).padStart(40)}`);
+            }
+        });
+        if (process.stdout.isTTY) process.stdout.write('\n');
+
+        await session.client.access(ftpsAccessOptions(config));
+        const loginDir = await session.client.pwd();
+        const absoluteTarget =
+            remoteBase === '/'
+                ? loginDir.replace(/\/+$/, '') || '/'
+                : `${loginDir.replace(/\/+$/, '')}${remoteBase}`;
+
+        console.log(`\nTarget: ftps://${config.host}:${config.port} → ${absoluteTarget}`);
+        if (protect.size) console.log(`Protected (never touched): ${[...protect].join(', ')}, dotfiles`);
+        printIncrementalPreview(diff, deleteEnabled);
+
+        if (!diff.toUpload.length && (!deleteEnabled || !diff.toDelete.length)) {
+            console.log('\n✅ Nothing to deploy — dist/ matches the last successful manifest.');
+            return;
+        }
+
+        if (askConfirm) {
+            const ok = await confirm('\nProceed with upload? (y/N) ');
+            if (!ok) {
+                console.log('Upload cancelled.');
+                return;
+            }
+        }
+
+        if (diff.toUpload.length) {
+            const uploadBytes = diff.toUpload.reduce((s, u) => s + u.entry.size, 0);
+            console.log(
+                `\n🚀 Uploading ${diff.toUpload.length} file(s) (${humanBytes(uploadBytes)}) → ftps://${config.host}:${config.port} …`,
+            );
+            await refreshFtpsSession(session, config, remoteBase);
+            await uploadSelectedFilesFtps(session, config, remoteBase, diff.toUpload, manifest, transferState);
+            console.log('✅ Upload complete.');
+        }
+
+        if (deleteEnabled && diff.toDelete.length) {
+            console.log(`\n🧹 Removing ${diff.toDelete.length} obsolete remote file(s)…`);
+            await refreshFtpsSession(session, config, remoteBase);
+            await deleteRemoteFilesFtps(session, config, remoteBase, diff.toDelete, protect, manifest);
+            console.log('✅ Cleanup complete.');
+        } else if (!deleteEnabled && diff.toDelete.length) {
+            console.log(
+                `ℹ️  ${diff.toDelete.length} obsolete remote file(s) kept (--no-mirror). Use default mirror or --full to clean up.`,
+            );
+        }
+    } catch (error) {
+        handleFtpsUploadError(error);
+    } finally {
+        session.client.close();
+    }
+}
+
+/** @param {unknown} error */
+function handleFtpsUploadError(error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    if (msg.includes('CERT') || msg.includes('certificate') || msg.includes('altnames')) {
+        console.error('❌ FTPS upload failed: TLS certificate does not match the FTP hostname.');
+        console.error('   FileZilla often ignores this; set DEPLOY_FTPS_INSECURE=true in the vault .env');
+    } else {
+        console.error('❌ FTPS upload failed:', error);
+    }
+    process.exit(1);
+}
+
+/**
+ * @param {DeployConfig} config
+ * @param {string} distDir
+ * @param {boolean} mirror
+ * @param {boolean} askConfirm
+ * @param {boolean} incremental
+ */
+async function uploadDistFtps(config, distDir, mirror, askConfirm, incremental) {
+    if (incremental) {
+        await uploadDistFtpsIncremental(config, distDir, mirror, askConfirm);
+    } else {
+        await uploadDistFtpsFull(config, distDir, mirror, askConfirm);
     }
 }
 
 /**
  * Uploads the engine `dist/` over FTPS or SFTP.
  * @param {DeployConfig} [config] Pre-validated config (from prepareDeployConfig).
- * @param {{ mirror?: boolean, confirm?: boolean }} [options]
+ * @param {{ mirror?: boolean, confirm?: boolean, incremental?: boolean }} [options]
  */
-export async function uploadDist(config, { mirror = true, confirm: askConfirm = false } = {}) {
+export async function uploadDist(
+    config,
+    { mirror = true, confirm: askConfirm = false, incremental = true } = {},
+) {
     const resolved = config ?? prepareDeployConfig();
     const distDir = path.join(projectRoot, 'dist');
     if (!fs.existsSync(distDir)) {
@@ -573,11 +1239,13 @@ export async function uploadDist(config, { mirror = true, confirm: askConfirm = 
         process.exit(1);
     }
 
+    if (!incremental) {
+        console.log('ℹ️  Full deploy (--full): remote scan + upload all files + mirror.');
+    }
+
     if (resolved.protocol === 'ftps') {
-        // FTP accounts are chrooted; `/` is the site root, so mirroring there is safe.
-        await uploadDistFtps(resolved, distDir, mirror, askConfirm);
+        await uploadDistFtps(resolved, distDir, mirror, askConfirm, incremental);
     } else {
-        // SFTP `/` is the real server filesystem root — refuse to mirror it.
         const normalizedRemote = resolved.remotePath.replace(/\/+$/, '');
         const mirrorAllowed = mirror && Boolean(normalizedRemote);
         if (mirror && !normalizedRemote) {
@@ -585,6 +1253,6 @@ export async function uploadDist(config, { mirror = true, confirm: askConfirm = 
                 '⚠️  Mirror disabled: refusing to mirror the SSH server root. Set a dedicated DEPLOY_REMOTE_PATH.',
             );
         }
-        await uploadDistSftp(resolved, distDir, mirrorAllowed, askConfirm);
+        await uploadDistSftp(resolved, distDir, mirrorAllowed, askConfirm, incremental);
     }
 }

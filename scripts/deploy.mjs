@@ -4,7 +4,8 @@
  * Deploy credentials are read from the vault .env.
  *
  * Options:
- *   --no-mirror (alias --additive)   keep remote-only files
+ *   --full                           full remote scan + upload all + mirror (legacy)
+ *   --no-mirror (alias --additive)   keep remote-only / skip orphan deletes
  *   --yes, -y                        skip the confirmation prompt
  */
 import { projectRoot } from '../config/vault.mjs';
@@ -15,6 +16,7 @@ import {
     uploadDist,
     mirrorFromArgv,
     confirmFromArgv,
+    deployModeFromArgv,
 } from './lib/deploy.mjs';
 
 const argv = process.argv.slice(2);
@@ -27,4 +29,9 @@ console.log(`   Vault:  ${resolveVaultGitRoot()}`);
 const config = prepareDeployConfig();
 console.log(`   Protocol: ${config.protocol.toUpperCase()} (${config.host}:${config.port})`);
 runBuild();
-await uploadDist(config, { mirror: mirrorFromArgv(argv), confirm: confirmFromArgv(argv) });
+const { incremental } = deployModeFromArgv(argv);
+await uploadDist(config, {
+    mirror: mirrorFromArgv(argv),
+    confirm: confirmFromArgv(argv),
+    incremental,
+});

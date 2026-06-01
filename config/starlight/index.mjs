@@ -11,6 +11,8 @@ export const starlightIntegration = starlight({
         './src/styles/mermaid.css',
         'katex/dist/katex.min.css',
         './src/styles/katex-starlight.css',
+        './src/styles/footnotes-starlight.css',
+        './src/styles/external-links-starlight.css',
     ],
     components: {
         Head: './src/components/Head.astro',

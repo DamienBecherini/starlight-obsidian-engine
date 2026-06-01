@@ -21,7 +21,22 @@ export const markdown = {
         ],
         rehypePlugins: [
             [rehypeKatex, { throwOnError: false, strict: false }],
-            [rehypeExternalLinks, { target: '_blank', rel: ['noopener', 'noreferrer'] }],
+            [
+                rehypeExternalLinks,
+                {
+                    target: '_blank',
+                    rel: ['noopener', 'noreferrer'],
+                    content: {
+                        type: 'element',
+                        tagName: 'span',
+                        properties: {
+                            className: ['external-link-icon'],
+                            ariaHidden: 'true',
+                        },
+                        children: [],
+                    },
+                },
+            ],
         ],
     }),
 };

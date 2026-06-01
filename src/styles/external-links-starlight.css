@@ -1,0 +1,27 @@
+/* External link icon (published site) */
+
+:root {
+    --zth-external-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6'/%3E%3Cpath d='M15 3h6v6'/%3E%3Cpath d='M10 14 21 3'/%3E%3C/svg%3E");
+}
+
+.sl-markdown-content .external-link-icon {
+    display: inline-block;
+    width: 0.85em;
+    height: 0.85em;
+    margin-inline-start: 0.2em;
+    vertical-align: -0.125em;
+    background-color: currentColor;
+    opacity: 0.72;
+    -webkit-mask: var(--zth-external-icon) no-repeat center / contain;
+    mask: var(--zth-external-icon) no-repeat center / contain;
+}
+
+.sl-markdown-content a:hover .external-link-icon {
+    opacity: 1;
+}
+
+/* Footnote refs/backrefs are anchors, not external URLs — no icon */
+.sl-markdown-content a[data-footnote-ref] .external-link-icon,
+.sl-markdown-content a[data-footnote-backref] .external-link-icon {
+    display: none;
+}
