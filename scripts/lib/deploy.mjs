@@ -17,6 +17,7 @@ import {
     hashDistTree,
     markUploaded,
     markDeleted,
+    saveManifest,
 } from './deploy-manifest.mjs';
 
 /**
@@ -63,12 +64,21 @@ export function confirmFromArgv(argv) {
 }
 
 /**
+ * @param {string[]} argv
+ * @returns {boolean}
+ */
+export function isFullDeployArgv(argv) {
+    return argv.some((a) => a === '--full' || a === 'full' || a === '-full');
+}
+
+/**
  * Incremental manifest deploy is default; `--full` restores scan + upload all + mirror.
+ * npm must receive script flags after `--` (e.g. `npm run upload -- --full`).
  * @param {string[]} argv
  * @returns {{ incremental: boolean }}
  */
 export function deployModeFromArgv(argv) {
-    return { incremental: !argv.includes('--full') };
+    return { incremental: !isFullDeployArgv(argv) };
 }
 
 /** Load deploy credentials from the vault `.env` (each vault may target a different host). */
@@ -383,13 +393,14 @@ async function uploadSelectedFilesSftp(sftp, normalizedRemote, uploads, manifest
     for (const { rel, abs, entry } of uploads) {
         await ensureSftpDirs(sftp, normalizedRemote, rel);
         await sftp.put(abs, sftpRemotePath(normalizedRemote, rel));
-        markUploaded(manifest, rel, entry, vaultRoot);
+        markUploaded(manifest, rel, entry, vaultRoot, { persist: false });
         done += 1;
         transferState.fileOrdinal = done;
         transferState.lastFile = path.basename(rel);
         progress.onFile(done, rel);
     }
     progress.finish();
+    saveManifest(manifest, vaultRoot);
 }
 
 /**
@@ -404,9 +415,10 @@ async function deleteRemoteFilesSftp(sftp, normalizedRemote, relPaths, protect, 
     for (const rel of relPaths) {
         if (isProtectedRel(rel, protect)) continue;
         await sftp.delete(sftpRemotePath(normalizedRemote, rel));
-        markDeleted(manifest, rel, vaultRoot);
+        markDeleted(manifest, rel, vaultRoot, { persist: false });
         console.log(`  − ${rel}`);
     }
+    saveManifest(manifest, vaultRoot);
 }
 
 /**
@@ -815,70 +827,189 @@ function isProtectedRel(rel, protect) {
 }
 
 /**
+ * @param {string} distDir
+ * @param {import('./deploy-manifest.mjs').ManifestDiff['toUpload']} uploads
+ */
+/** Root files first, heavy `_astro` last (Windows locale sorts `_astro` before `.`). */
+function compareUploadParentKeys(a, b) {
+    if (a === '.') return -1;
+    if (b === '.') return 1;
+    if (a === '_astro') return 1;
+    if (b === '_astro') return -1;
+    return a.localeCompare(b);
+}
+
+function groupUploadsByParent(distDir, uploads) {
+    /** @type {Map<string, { localDir: string, remoteDir: string, items: typeof uploads, names: Set<string> }>} */
+    const groups = new Map();
+    for (const item of uploads) {
+        const parent = path.posix.dirname(item.rel);
+        if (!groups.has(parent)) {
+            groups.set(parent, {
+                localDir: parent === '.' ? distDir : path.join(distDir, parent),
+                remoteDir: parent,
+                items: [],
+                names: new Set(),
+            });
+        }
+        const group = groups.get(parent);
+        group.items.push(item);
+        group.names.add(path.posix.basename(item.rel));
+    }
+    return groups;
+}
+
+/**
+ * o2switch rejects ensureDir+cd; use uploadFromDir per parent folder (same as full deploy).
  * @param {{ client: FtpClient }} session
  * @param {DeployConfig} config
+ * @param {string} distDir
  * @param {string} remoteBase
  * @param {import('./deploy-manifest.mjs').ManifestDiff['toUpload']} uploads
  * @param {import('./deploy-manifest.mjs').DeployManifest} manifest
  * @param {{ lastFile: string, bytesOverall: number, fileOrdinal: number }} transferState
  */
-async function uploadSelectedFilesFtps(session, config, remoteBase, uploads, manifest, transferState) {
+async function uploadSelectedFilesFtps(
+    session,
+    config,
+    distDir,
+    remoteBase,
+    uploads,
+    manifest,
+    transferState,
+) {
     const vaultRoot = resolveVaultGitRoot();
     const totalBytes = uploads.reduce((s, u) => s + u.entry.size, 0);
     const progress = createUploadProgress({ totalBytes });
     let bytesDone = 0;
     let filesSinceReconnect = 0;
+    let filesDone = 0;
 
-    const attachProgress = () => {
+    /** @param {number} [batchStartBytes] */
+    const attachProgress = (batchStartBytes = bytesDone) => {
         session.client.trackProgress((info) => {
-            progress.onBytes(bytesDone + info.bytesOverall, info.name);
+            progress.onBytes(batchStartBytes + info.bytesOverall, info.name);
             if (info.name) transferState.lastFile = info.name;
         });
     };
 
+    const groups = groupUploadsByParent(distDir, uploads);
+    const parentKeys = [...groups.keys()].sort(compareUploadParentKeys);
+
     await prepareFtpsCwd(session, config, remoteBase);
     attachProgress();
 
-    for (let i = 0; i < uploads.length; i++) {
-        const { rel, abs, entry } = uploads[i];
-        let done = false;
-        for (let attempt = 0; attempt < 4 && !done; attempt++) {
-            try {
-                if (filesSinceReconnect >= FTPS_MAX_FILES_PER_SESSION) {
+    for (let parentIdx = 0; parentIdx < parentKeys.length; parentIdx++) {
+        const parentKey = parentKeys[parentIdx];
+        const group = groups.get(parentKey);
+        if (!group) continue;
+
+        if (parentIdx > 0) {
+            session.client.trackProgress();
+            await refreshFtpsSession(session, config, remoteBase);
+            attachProgress();
+            filesSinceReconnect = 0;
+        }
+
+        if (parentKey === '.') {
+            for (const item of group.items) {
+                let done = false;
+                for (let attempt = 0; attempt < 4 && !done; attempt++) {
+                    try {
+                        if (filesSinceReconnect >= FTPS_MAX_FILES_PER_SESSION) {
+                            session.client.trackProgress();
+                            await refreshFtpsSession(session, config, remoteBase);
+                            attachProgress();
+                            filesSinceReconnect = 0;
+                        }
+                        const name = path.posix.basename(item.rel);
+                        const fileStartBytes = bytesDone;
+                        attachProgress(fileStartBytes);
+                        await session.client.uploadFrom(item.abs, name);
+                        session.client.trackProgress();
+                        markUploaded(manifest, item.rel, item.entry, vaultRoot, { persist: false });
+                        bytesDone = fileStartBytes + item.entry.size;
+                        transferState.bytesOverall = bytesDone;
+                        progress.onBytes(bytesDone, item.rel);
+                        transferState.fileOrdinal = ++filesDone;
+                        filesSinceReconnect += 1;
+                        done = true;
+                    } catch (error) {
+                        session.client.trackProgress();
+                        if (isFtpsTransientError(error) && attempt < 3) {
+                            await refreshFtpsSession(session, config, remoteBase);
+                            attachProgress();
+                            filesSinceReconnect = 0;
+                            continue;
+                        }
+                        throw error;
+                    }
+                }
+            }
+            saveManifest(manifest, vaultRoot);
+            continue;
+        }
+
+        const names = [...group.names].sort((a, b) => a.localeCompare(b));
+        for (let b = 0; b < names.length; b += FTPS_MAX_FILES_PER_SESSION) {
+            const batchNames = names.slice(b, b + FTPS_MAX_FILES_PER_SESSION);
+            const batchSet = new Set(batchNames);
+            const batchItems = group.items.filter((item) => batchSet.has(path.posix.basename(item.rel)));
+
+            let done = false;
+            for (let attempt = 0; attempt < 4 && !done; attempt++) {
+                try {
+                    if (filesSinceReconnect >= FTPS_MAX_FILES_PER_SESSION || b > 0) {
+                        session.client.trackProgress();
+                        await refreshFtpsSession(session, config, remoteBase);
+                        attachProgress();
+                        filesSinceReconnect = 0;
+                    }
+                    const batchStartBytes = bytesDone;
+                    attachProgress(batchStartBytes);
+                    await ftpsUploadFromDirWithRetry(
+                        session,
+                        config,
+                        remoteBase,
+                        group.localDir,
+                        group.remoteDir,
+                        (name) => batchSet.has(name),
+                    );
                     session.client.trackProgress();
-                    await refreshFtpsSession(session, config, remoteBase);
-                    attachProgress();
-                    filesSinceReconnect = 0;
+                    const batchBytes = batchItems.reduce((sum, item) => sum + item.entry.size, 0);
+                    for (const item of batchItems) {
+                        markUploaded(manifest, item.rel, item.entry, vaultRoot, { persist: false });
+                        transferState.fileOrdinal = ++filesDone;
+                        filesSinceReconnect += 1;
+                    }
+                    bytesDone = batchStartBytes + batchBytes;
+                    transferState.bytesOverall = bytesDone;
+                    progress.onBytes(bytesDone, batchItems.at(-1)?.rel ?? group.remoteDir);
+                    saveManifest(manifest, vaultRoot);
+                    if (group.remoteDir === '_astro' || filesSinceReconnect >= FTPS_MAX_FILES_PER_SESSION) {
+                        session.client.trackProgress();
+                        await refreshFtpsSession(session, config, remoteBase);
+                        attachProgress();
+                        filesSinceReconnect = 0;
+                    }
+                    done = true;
+                } catch (error) {
+                    session.client.trackProgress();
+                    if (isFtpsTransientError(error) && attempt < 3) {
+                        await refreshFtpsSession(session, config, remoteBase);
+                        attachProgress();
+                        filesSinceReconnect = 0;
+                        continue;
+                    }
+                    throw error;
                 }
-                const parent = path.posix.dirname(rel);
-                const name = path.posix.basename(rel);
-                if (parent !== '.') {
-                    await session.client.ensureDir(parent);
-                    await session.client.cd(parent);
-                }
-                await session.client.uploadFrom(abs, name);
-                await prepareFtpsCwd(session, config, remoteBase);
-                markUploaded(manifest, rel, entry, vaultRoot);
-                bytesDone += entry.size;
-                transferState.bytesOverall = bytesDone;
-                transferState.fileOrdinal = i + 1;
-                filesSinceReconnect += 1;
-                done = true;
-            } catch (error) {
-                session.client.trackProgress();
-                if (isFtpsTransientError(error) && attempt < 3) {
-                    await refreshFtpsSession(session, config, remoteBase);
-                    attachProgress();
-                    filesSinceReconnect = 0;
-                    continue;
-                }
-                throw error;
             }
         }
     }
 
     session.client.trackProgress();
     progress.finish();
+    saveManifest(manifest, vaultRoot);
 }
 
 /**
@@ -907,7 +1038,7 @@ async function deleteRemoteFilesFtps(session, config, remoteBase, relPaths, prot
                     filesSinceReconnect = 0;
                 }
                 await session.client.remove(rel);
-                markDeleted(manifest, rel, vaultRoot);
+                markDeleted(manifest, rel, vaultRoot, { persist: false });
                 console.log(`  − ${rel}`);
                 filesSinceReconnect += 1;
                 done = true;
@@ -919,6 +1050,9 @@ async function deleteRemoteFilesFtps(session, config, remoteBase, relPaths, prot
                 }
                 throw error;
             }
+        }
+        if ((i + 1) % FTPS_MAX_FILES_PER_SESSION === 0 || i === toRemove.length - 1) {
+            saveManifest(manifest, vaultRoot);
         }
     }
 }
@@ -936,11 +1070,11 @@ async function uploadDistResilientFtps(session, config, distDir, remoteBase, tot
     const progress = createUploadProgress({ totalBytes });
     let bytesDone = 0;
 
-    /** @param {string} [chunkLabel] */
-    const attachProgress = (chunkLabel) => {
-        progress.onBytes(bytesDone, chunkLabel ? `[${chunkLabel}]` : '');
+    /** @param {string} [chunkLabel] @param {number} [chunkStartBytes] */
+    const attachProgress = (chunkLabel, chunkStartBytes = bytesDone) => {
+        progress.onBytes(chunkStartBytes, chunkLabel ? `[${chunkLabel}]` : '');
         session.client.trackProgress((info) => {
-            progress.onBytes(bytesDone + info.bytesOverall, info.name);
+            progress.onBytes(chunkStartBytes + info.bytesOverall, info.name);
             if (info.name) transferState.lastFile = info.name;
         });
     };
@@ -967,13 +1101,15 @@ async function uploadDistResilientFtps(session, config, distDir, remoteBase, tot
         }
 
         if (entry.isFile()) {
-            attachProgress(chunkLabel);
+            const chunkStartBytes = bytesDone;
+            attachProgress(chunkLabel, chunkStartBytes);
             try {
                 await session.client.uploadFrom(localPath, entry.name);
             } finally {
                 detachProgress();
             }
-            bytesDone += fs.statSync(localPath).size;
+            bytesDone = chunkStartBytes + fs.statSync(localPath).size;
+            progress.onBytes(bytesDone, entry.name);
             transferState.fileOrdinal += 1;
             transferState.bytesOverall = bytesDone;
             continue;
@@ -985,7 +1121,8 @@ async function uploadDistResilientFtps(session, config, distDir, remoteBase, tot
         const hiddenFilter = (name) => !isHidden(name);
 
         if (fileCount <= FTPS_MAX_FILES_PER_SESSION || !isFlatLocalDir(localPath)) {
-            attachProgress(chunkLabel);
+            const chunkStartBytes = bytesDone;
+            attachProgress(chunkLabel, chunkStartBytes);
             try {
                 await ftpsUploadFromDirWithRetry(
                     session,
@@ -998,7 +1135,8 @@ async function uploadDistResilientFtps(session, config, distDir, remoteBase, tot
             } finally {
                 detachProgress();
             }
-            bytesDone += sumLocalBytes(localPath);
+            bytesDone = chunkStartBytes + sumLocalBytes(localPath);
+            progress.onBytes(bytesDone, chunkLabel);
             transferState.fileOrdinal += 1;
             transferState.bytesOverall = bytesDone;
             continue;
@@ -1014,7 +1152,11 @@ async function uploadDistResilientFtps(session, config, distDir, remoteBase, tot
             if (b > 0) {
                 await refreshFtpsSession(session, config, remoteBase);
             }
-            attachProgress(`${chunkLabel} (${Math.floor(b / FTPS_MAX_FILES_PER_SESSION) + 1})`);
+            const batchStartBytes = bytesDone;
+            attachProgress(
+                `${chunkLabel} (${Math.floor(b / FTPS_MAX_FILES_PER_SESSION) + 1})`,
+                batchStartBytes,
+            );
             try {
                 await ftpsUploadFromDirWithRetry(
                     session,
@@ -1027,9 +1169,12 @@ async function uploadDistResilientFtps(session, config, distDir, remoteBase, tot
             } finally {
                 detachProgress();
             }
+            let batchBytes = 0;
             for (const name of batch) {
-                bytesDone += fs.statSync(path.join(localPath, name)).size;
+                batchBytes += fs.statSync(path.join(localPath, name)).size;
             }
+            bytesDone = batchStartBytes + batchBytes;
+            progress.onBytes(bytesDone, batch.at(-1) ?? chunkLabel);
             transferState.bytesOverall = bytesDone;
         }
         transferState.fileOrdinal += 1;
@@ -1175,7 +1320,15 @@ async function uploadDistFtpsIncremental(config, distDir, mirror, askConfirm) {
                 `\n🚀 Uploading ${diff.toUpload.length} file(s) (${humanBytes(uploadBytes)}) → ftps://${config.host}:${config.port} …`,
             );
             await refreshFtpsSession(session, config, remoteBase);
-            await uploadSelectedFilesFtps(session, config, remoteBase, diff.toUpload, manifest, transferState);
+            await uploadSelectedFilesFtps(
+                session,
+                config,
+                distDir,
+                remoteBase,
+                diff.toUpload,
+                manifest,
+                transferState,
+            );
             console.log('✅ Upload complete.');
         }
 

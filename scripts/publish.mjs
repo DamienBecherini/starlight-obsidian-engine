@@ -77,7 +77,7 @@ function parseArgs(argv) {
         const arg = argv[i];
         if (arg === '--help' || arg === '-h') opts.help = true;
         else if (arg === '--skip-git') opts.skipGit = true;
-        else if (arg === '--full') opts.incremental = false;
+        else if (arg === '--full' || arg === 'full' || arg === '-full') opts.incremental = false;
         else if (arg === '--no-mirror' || arg === '--additive') opts.mirror = false;
         else if (arg === '--yes' || arg === '-y') opts.assumeYes = true;
         else if (arg === '--commit-message') {

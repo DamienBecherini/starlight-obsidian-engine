@@ -4,7 +4,7 @@
  * Uploads the existing engine dist/ using deploy credentials from the vault .env.
  *
  * Options:
- *   --full                           full remote scan + upload all + mirror (legacy)
+ *   --full (or `full` after npm `--`)  full remote scan + upload all + mirror (legacy)
  *   --no-mirror (alias --additive)   keep remote-only / skip orphan deletes
  *   --yes, -y                        skip the confirmation prompt
  */

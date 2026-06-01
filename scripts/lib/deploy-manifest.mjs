@@ -116,6 +116,36 @@ export function loadManifest(vaultRoot = resolveVaultGitRoot()) {
 }
 
 /**
+ * Replace dest from tmp; Windows often returns EPERM on rename-over-open files.
+ * @param {string} destPath
+ * @param {string} tmpPath
+ */
+function replaceFileFromTmp(destPath, tmpPath) {
+    try {
+        fs.renameSync(tmpPath, destPath);
+        return;
+    } catch (err) {
+        const code = err && typeof err === 'object' && 'code' in err ? err.code : '';
+        if (code !== 'EPERM' && code !== 'EACCES' && code !== 'EBUSY' && code !== 'EXDEV') {
+            throw err;
+        }
+    }
+    try {
+        if (fs.existsSync(destPath)) fs.unlinkSync(destPath);
+        fs.renameSync(tmpPath, destPath);
+        return;
+    } catch {
+        /* fall through */
+    }
+    fs.copyFileSync(tmpPath, destPath);
+    try {
+        fs.unlinkSync(tmpPath);
+    } catch {
+        /* ignore orphan tmp */
+    }
+}
+
+/**
  * @param {DeployManifest} manifest
  * @param {string} [vaultRoot]
  */
@@ -123,8 +153,20 @@ export function saveManifest(manifest, vaultRoot = resolveVaultGitRoot()) {
     const filePath = manifestPath(vaultRoot);
     const tmpPath = `${filePath}.tmp`;
     manifest.updatedAt = new Date().toISOString();
-    fs.writeFileSync(tmpPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
-    fs.renameSync(tmpPath, filePath);
+    const body = `${JSON.stringify(manifest, null, 2)}\n`;
+    fs.writeFileSync(tmpPath, body, 'utf8');
+    try {
+        replaceFileFromTmp(filePath, tmpPath);
+    } catch (err) {
+        try {
+            if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath);
+        } catch {
+            /* ignore */
+        }
+        fs.writeFileSync(filePath, body, 'utf8');
+        if (err instanceof Error) throw err;
+        throw err;
+    }
 }
 
 /**
@@ -201,20 +243,22 @@ export function attachUploadAbsPaths(distDir, diff) {
  * @param {string} rel
  * @param {ManifestEntry} entry
  * @param {string} [vaultRoot]
+ * @param {{ persist?: boolean }} [options]
  */
-export function markUploaded(manifest, rel, entry, vaultRoot) {
+export function markUploaded(manifest, rel, entry, vaultRoot, options = {}) {
     manifest.files[rel] = entry;
-    saveManifest(manifest, vaultRoot);
+    if (options.persist !== false) saveManifest(manifest, vaultRoot);
 }
 
 /**
  * @param {DeployManifest} manifest
  * @param {string} rel
  * @param {string} [vaultRoot]
+ * @param {{ persist?: boolean }} [options]
  */
-export function markDeleted(manifest, rel, vaultRoot) {
+export function markDeleted(manifest, rel, vaultRoot, options = {}) {
     delete manifest.files[rel];
-    saveManifest(manifest, vaultRoot);
+    if (options.persist !== false) saveManifest(manifest, vaultRoot);
 }
 
 /**

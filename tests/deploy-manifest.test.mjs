@@ -10,7 +10,10 @@ import {
     emptyManifest,
     ensureManifest,
     hashDistFile,
+    loadManifest,
+    saveManifest,
 } from '../scripts/lib/deploy-manifest.mjs';
+import { deployModeFromArgv, isFullDeployArgv } from '../scripts/lib/deploy.mjs';
 
 const config = {
     protocol: 'ftps',
@@ -18,6 +21,13 @@ const config = {
     port: 21,
     remotePath: '/',
 };
+
+test('deployModeFromArgv recognizes full deploy flags', () => {
+    assert.equal(deployModeFromArgv(['--yes']).incremental, true);
+    assert.equal(deployModeFromArgv(['--full', '--yes']).incremental, false);
+    assert.equal(deployModeFromArgv(['full', '--yes']).incremental, false);
+    assert.equal(isFullDeployArgv(['upload', 'full']), true);
+});
 
 test('buildDeployKey is stable', () => {
     assert.equal(buildDeployKey(config), 'ftps|ftp.example.com|21|/');
@@ -64,6 +74,18 @@ test('ensureManifest resets on deploy key mismatch', () => {
     const next = ensureManifest(manifest, config);
     assert.equal(next.deployKey, buildDeployKey(config));
     assert.deepEqual(next.files, {});
+});
+
+test('saveManifest replaces existing file repeatedly', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'deploy-manifest-save-'));
+    const manifest = emptyManifest(config);
+    manifest.files = { 'a.html': { sha256: 'aa', size: 1 } };
+    saveManifest(manifest, dir);
+    manifest.files['b.html'] = { sha256: 'bb', size: 2 };
+    saveManifest(manifest, dir);
+    const loaded = loadManifest(dir);
+    assert.equal(loaded?.files['b.html']?.size, 2);
+    fs.rmSync(dir, { recursive: true, force: true });
 });
 
 test('hashDistFile matches file bytes', async () => {
