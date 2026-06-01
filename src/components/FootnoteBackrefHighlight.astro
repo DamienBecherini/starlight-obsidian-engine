@@ -1,0 +1,111 @@
+---
+// Progressive enhancement: flash the block that contains a footnote ref when
+// navigating back from the footnotes list (no extra markup required).
+---
+
+<script>
+    document.documentElement.classList.add('zth-footnote-js');
+
+    const BLOCK_SELECTOR =
+        'p, li, td, th, blockquote, aside, dd, figcaption, h1, h2, h3, h4, h5, h6';
+    const BLOCK_HIGHLIGHT_CLASS = 'zth-footnote-target-block';
+    const REF_HIGHLIGHT_CLASS = 'zth-footnote-target-ref';
+    const ROOT_SELECTOR = '.sl-markdown-content';
+    const FLASH_MS = 2800;
+
+    const cleanupTimers = new WeakMap<Element, number>();
+
+    function findFootnoteRef(hash: string): HTMLAnchorElement | null {
+        if (!hash) return null;
+        const id = decodeURIComponent(hash.replace(/^#/, ''));
+        const el = document.getElementById(id);
+        if (el instanceof HTMLAnchorElement && el.matches('[data-footnote-ref]')) return el;
+        return null;
+    }
+
+    function scheduleCleanup(block: Element, ref: HTMLAnchorElement): void {
+        const previous = cleanupTimers.get(block);
+        if (previous !== undefined) window.clearTimeout(previous);
+
+        const cleanup = (): void => {
+            block.classList.remove(BLOCK_HIGHLIGHT_CLASS);
+            ref.classList.remove(REF_HIGHLIGHT_CLASS);
+            cleanupTimers.delete(block);
+        };
+
+        block.addEventListener('animationend', cleanup, { once: true });
+        cleanupTimers.set(block, window.setTimeout(cleanup, FLASH_MS + 100));
+    }
+
+    function scrollRefIntoView(ref: HTMLAnchorElement): void {
+        const rect = ref.getBoundingClientRect();
+        const styles = getComputedStyle(ref);
+        const topMargin = Number.parseFloat(styles.scrollMarginTop) || 80;
+        const top = window.scrollY + rect.top - topMargin;
+        window.scrollTo({ top, behavior: 'smooth' });
+    }
+
+    /** scrollIntoView also scrolls overflow-x wrappers (Starlight tables) — reset them. */
+    function resetNestedHorizontalScroll(ref: HTMLElement): void {
+        let el: HTMLElement | null = ref.parentElement;
+        while (el && el !== document.body) {
+            const { overflowX, overflow } = getComputedStyle(el);
+            if (/(auto|scroll|overlay)/.test(overflowX) || /(auto|scroll|overlay)/.test(overflow)) {
+                el.scrollLeft = 0;
+            }
+            el = el.parentElement;
+        }
+    }
+
+    function highlightBlock(ref: HTMLAnchorElement): void {
+        const root = ref.closest(ROOT_SELECTOR);
+        if (!root) return;
+
+        const block = ref.closest(BLOCK_SELECTOR);
+        if (!block || !root.contains(block)) return;
+
+        block.classList.remove(BLOCK_HIGHLIGHT_CLASS);
+        ref.classList.remove(REF_HIGHLIGHT_CLASS);
+        void block.getBoundingClientRect();
+        block.classList.add(BLOCK_HIGHLIGHT_CLASS);
+        ref.classList.add(REF_HIGHLIGHT_CLASS);
+        scheduleCleanup(block, ref);
+
+        resetNestedHorizontalScroll(ref);
+        scrollRefIntoView(ref);
+    }
+
+    function flashFromHash(): void {
+        const ref = findFootnoteRef(location.hash);
+        if (ref) highlightBlock(ref);
+    }
+
+    document.addEventListener('click', (event) => {
+        const target = event.target;
+        if (!(target instanceof Element)) return;
+
+        const backref = target.closest('[data-footnote-backref], .footnote-backref');
+        if (!(backref instanceof HTMLAnchorElement)) return;
+
+        const href = backref.getAttribute('href');
+        if (!href?.startsWith('#')) return;
+
+        const ref = findFootnoteRef(href);
+        if (!ref) return;
+
+        event.preventDefault();
+        if (location.hash !== href) {
+            history.pushState(null, '', href);
+        }
+        highlightBlock(ref);
+    });
+
+    window.addEventListener('hashchange', flashFromHash);
+    document.addEventListener('astro:page-load', flashFromHash);
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', flashFromHash);
+    } else {
+        flashFromHash();
+    }
+</script>

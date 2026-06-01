@@ -3,11 +3,103 @@
 :root {
     --zth-footnote-ref-color: #1d4ed8;
     --zth-footnote-ref-hover-color: #1e40af;
+    --zth-footnote-highlight-bg: rgb(29 78 216 / 0.14);
+    --zth-footnote-highlight-bg-strong: rgb(29 78 216 / 0.28);
+    --zth-footnote-highlight-ring: rgb(29 78 216 / 0.55);
 }
 
 :root[data-theme='dark'] {
     --zth-footnote-ref-color: #93c5fd;
     --zth-footnote-ref-hover-color: #bfdbfe;
+    --zth-footnote-highlight-bg: rgb(147 197 253 / 0.12);
+    --zth-footnote-highlight-bg-strong: rgb(147 197 253 / 0.22);
+    --zth-footnote-highlight-ring: rgb(147 197 253 / 0.45);
+}
+
+@keyframes zth-footnote-block-highlight {
+    0% {
+        background-color: var(--zth-footnote-highlight-bg-strong);
+        box-shadow: inset 0 0 0 2px var(--zth-footnote-highlight-ring);
+    }
+
+    65% {
+        background-color: var(--zth-footnote-highlight-bg);
+        box-shadow: inset 0 0 0 1px var(--zth-footnote-highlight-ring);
+    }
+
+    100% {
+        background-color: transparent;
+        box-shadow: none;
+    }
+}
+
+@keyframes zth-footnote-ref-highlight {
+    0%,
+    20% {
+        outline-color: var(--zth-footnote-highlight-ring);
+    }
+
+    100% {
+        outline-color: transparent;
+    }
+}
+
+/* JS-driven flash — prose blocks can breathe; table cells must not shift layout */
+html.zth-footnote-js
+    .sl-markdown-content
+    :is(p, li, blockquote, aside, dd, figcaption, h1, h2, h3, h4, h5, h6).zth-footnote-target-block {
+    border-radius: 0.35em;
+    margin-inline: -0.35em;
+    padding-inline: 0.35em;
+    padding-block: 0.12em;
+    animation: zth-footnote-block-highlight 2.8s ease-out forwards;
+}
+
+html.zth-footnote-js .sl-markdown-content :is(td, th).zth-footnote-target-block {
+    animation: zth-footnote-block-highlight 2.8s ease-out forwards;
+}
+
+html.zth-footnote-js .sl-markdown-content a[data-footnote-ref].zth-footnote-target-ref {
+    outline: 2px solid transparent;
+    outline-offset: 0.15em;
+    border-radius: 0.15em;
+    animation: zth-footnote-ref-highlight 2.8s ease-out forwards;
+}
+
+/* No-JS fallback when landing on a footnote ref via hash */
+html:not(.zth-footnote-js)
+    .sl-markdown-content
+    :is(p, li, blockquote, aside, dd, figcaption, h1, h2, h3, h4, h5, h6):has(
+        a[data-footnote-ref]:target
+    ) {
+    border-radius: 0.35em;
+    margin-inline: -0.35em;
+    padding-inline: 0.35em;
+    padding-block: 0.12em;
+    background-color: var(--zth-footnote-highlight-bg-strong);
+    box-shadow: inset 0 0 0 2px var(--zth-footnote-highlight-ring);
+}
+
+html:not(.zth-footnote-js)
+    .sl-markdown-content
+    :is(td, th):has(a[data-footnote-ref]:target) {
+    background-color: var(--zth-footnote-highlight-bg-strong);
+    box-shadow: inset 0 0 0 2px var(--zth-footnote-highlight-ring);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    html.zth-footnote-js
+        .sl-markdown-content
+        :is(p, li, blockquote, aside, dd, figcaption, h1, h2, h3, h4, h5, h6, td, th).zth-footnote-target-block {
+        animation: none;
+        background-color: var(--zth-footnote-highlight-bg-strong);
+        box-shadow: inset 0 0 0 2px var(--zth-footnote-highlight-ring);
+    }
+
+    html.zth-footnote-js .sl-markdown-content a[data-footnote-ref].zth-footnote-target-ref {
+        animation: none;
+        outline-color: var(--zth-footnote-highlight-ring);
+    }
 }
 
 /* In-text references: visible but subtle */
@@ -15,6 +107,8 @@
     color: var(--zth-footnote-ref-color) !important;
     text-decoration: none;
     font-weight: 600;
+    scroll-margin-top: 5rem;
+    scroll-margin-bottom: 2rem;
 }
 
 .sl-markdown-content a[data-footnote-ref]::before {

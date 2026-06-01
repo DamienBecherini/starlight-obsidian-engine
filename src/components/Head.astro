@@ -2,7 +2,9 @@
 // Override Starlight: render the default <head> then inject the Mermaid enhancer.
 import Default from '@astrojs/starlight/components/Head.astro';
 import MermaidEnhancer from './MermaidEnhancer.astro';
+import FootnoteBackrefHighlight from './FootnoteBackrefHighlight.astro';
 ---
 
 <Default><slot /></Default>
 <MermaidEnhancer />
+<FootnoteBackrefHighlight />
