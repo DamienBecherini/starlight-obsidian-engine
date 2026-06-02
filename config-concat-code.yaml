@@ -1,0 +1,71 @@
+# AIContextCraft config — exports this repository to a single XML file for LLM context.
+# Tool: https://github.com/DamienBecherini/AIContextCraft (run from this repo root).
+#
+# Default path for the output file.
+output_path: "./build/engine-concat-code.xml"
+
+# --- FILE SELECTION ---
+
+# STEP 1: INCLUSION (priority)
+# Only files and directories matching these patterns are considered.
+# The '**/*' pattern means "all files in all subdirectories".
+# Examples:
+#   - ['src/', 'tests/', 'README.md'] to take only src, tests, and README.
+#   - ['*.py', 'requirements.txt'] for Python files and requirements only.
+include_patterns:
+  - '**/*'
+  # - 'caprover_wp_manager/'
+
+# STEP 2: EXCLUSION
+# Among files included in step 1, those matching these patterns are removed.
+
+# Common filters: apply everywhere (tree and file content).
+# Ideal for excluding dependencies, builds, caches, etc.
+common_filters:
+  - "*.pyc"
+  - ".git/"
+  - "dist/"
+  - "config-concat*"
+  - "*-lock.json"
+  - "*.map"
+  # # - "build/"
+  # - "build/concat-*"
+  # - "build/*.md"
+  # - "build/*.log"
+  # - "build/logs/"
+  - "*.mdc"
+  # - tests/
+  # - docs/
+
+
+
+
+# Content-specific filters: exclude from file content only;
+# the file/directory still APPEARS in the tree.
+project_only_filters:
+  - "*.jpg"
+  - "*.webp"
+  - "*.png"
+  - "*.svg"
+  - "*.woff2"
+  - ".woff"
+  - "jquery-ui.min.css"
+  # - README.md
+  - LICENSE
+  - _githooks
+  - "config-concat*"
+  # - "AIContextCraft/docs/architecture/assets/"
+  - ".agents/"
+  - ".vscode/"
+  - "build/"
+  
+
+
+# Tree-specific filters: exclude from tree display only.
+# Content of these files WILL be included in the final output.
+tree_only_filters:
+  - ""
+  # - "*.md"
+  # - "LICENSE"
+  # - ".gitignore"
+  # - "config.yaml"

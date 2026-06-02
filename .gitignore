@@ -32,4 +32,4 @@ build/
 .cursor/*
 !.cursor/rules/
 !.cursor/rules/*.mdc
-config-concat-code.yaml
+# config-concat-code.yaml
