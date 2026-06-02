@@ -3,10 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { loadVaultGitignore } from '../../config/gitignore.mjs';
 
-export const LEXICON_DIR = '00-lexique';
-export const GLOSSARY_BASENAME = 'glossaire-ia.md';
-export const INDEX_BASENAME = 'index-lexique.md';
-export const LEXICON_TAG = 'lexique';
+/** @typedef {import('../../config/lexicon.mjs').LexiconConfigEnabled} LexiconConfigEnabled */
 
 /**
  * @param {string} cell
@@ -73,28 +70,38 @@ export function readLexiconEntry(filePath) {
 }
 
 /**
+ * @typedef {Object} LexiconEntry
+ * @property {string} slug
+ * @property {string} title
+ * @property {string} description
+ * @property {string[]} warnings
+ */
+
+/**
  * @param {string} vaultRoot
+ * @param {LexiconConfigEnabled} config
  * @returns {LexiconEntry[]}
  */
-export function collectLexiconEntries(vaultRoot) {
-    const lexiconPath = path.join(vaultRoot, LEXICON_DIR);
-    if (!fs.existsSync(lexiconPath)) {
-        throw new Error(`Lexicon directory not found: ${lexiconPath}`);
+export function collectLexiconEntries(vaultRoot, config) {
+    const { lexiconDir, hubBasename, indexBasename } = resolvePathsFromConfig(config, vaultRoot);
+    if (!fs.existsSync(lexiconDir)) {
+        throw new Error(`Lexicon directory not found: ${lexiconDir}`);
     }
 
+    const directory = config.directory.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
     const isIgnored = loadVaultGitignore(vaultRoot);
     /** @type {LexiconEntry[]} */
     const entries = [];
 
-    for (const name of fs.readdirSync(lexiconPath)) {
+    for (const name of fs.readdirSync(lexiconDir)) {
         if (!name.endsWith('.md')) continue;
-        if (name === GLOSSARY_BASENAME || name === INDEX_BASENAME) continue;
+        if (name === hubBasename || name === indexBasename) continue;
 
-        const vaultRel = `${LEXICON_DIR}/${name}`.replace(/\\/g, '/');
+        const vaultRel = `${directory}/${name}`.replace(/\\/g, '/');
         if (isIgnored(vaultRel)) continue;
 
-        const meta = readLexiconEntry(path.join(lexiconPath, name));
-        if (!meta?.tags.includes(LEXICON_TAG)) continue;
+        const meta = readLexiconEntry(path.join(lexiconDir, name));
+        if (!meta?.tags.includes(config.entryTag)) continue;
 
         const slug = name.replace(/\.md$/i, '');
         entries.push({
@@ -109,47 +116,60 @@ export function collectLexiconEntries(vaultRoot) {
         if (!meta.description?.trim()) entry.warnings.push('missing description');
     }
 
-    entries.sort((a, b) => a.title.localeCompare(b.title, 'fr', { sensitivity: 'base' }));
+    entries.sort((a, b) =>
+        a.title.localeCompare(b.title, config.sortLocale, { sensitivity: 'base' }),
+    );
     return entries;
 }
 
 /**
- * @typedef {Object} LexiconEntry
- * @property {string} slug
- * @property {string} title
- * @property {string} description
- * @property {string[]} warnings
+ * @param {LexiconConfigEnabled} config
+ * @param {string} vaultRoot
  */
+function resolvePathsFromConfig(config, vaultRoot) {
+    const dir = config.directory.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+    const lexiconDir = path.join(vaultRoot, dir);
+    const indexBasename = path.basename(config.indexPage);
+    return {
+        lexiconDir,
+        hubBasename: path.basename(config.hubPage),
+        indexBasename,
+        directory: dir,
+        indexFilePath: path.join(lexiconDir, indexBasename),
+    };
+}
+
+/**
+ * @param {string} slug
+ * @param {string} title
+ * @param {string} directory
+ * @returns {string}
+ */
+export function mdLinkCell(slug, title, directory) {
+    const label = escapeTableCell(title);
+    return `[${label}](/${directory}/${slug}/)`;
+}
 
 /**
  * @param {LexiconEntry[]} entries
+ * @param {LexiconConfigEnabled} config
  * @returns {string}
  */
-/**
- * Markdown link for table cells (wiki [[path|label]] breaks GFM table parsing).
- * @param {string} slug
- * @param {string} title
- * @returns {string}
- */
-export function mdLinkCell(slug, title) {
-    const label = escapeTableCell(title);
-    return `[${label}](/${LEXICON_DIR}/${slug}/)`;
-}
-
-export function renderIndexMarkdown(entries) {
+export function renderIndexMarkdown(entries, config) {
+    const directory = config.directory.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
     const rows = entries.map((e) => {
-        const term = mdLinkCell(e.slug, e.title);
+        const term = mdLinkCell(e.slug, e.title, directory);
         const def = escapeTableCell(e.description);
         return `| ${term} | ${def} |`;
     });
 
     return [
         '---',
-        'title: Index du lexique',
-        'description: Liste alphabétique de toutes les fiches du lexique IA on-premise.',
+        `title: ${config.index.title}`,
+        `description: ${config.index.description}`,
         '---',
         '',
-        'Liste générée automatiquement au build. Pour une lecture guidée, voir [[00-lexique/glossaire-ia|Glossaire IA]].',
+        config.index.intro,
         '',
         '| Terme | Définition |',
         '| :-- | :-- |',
@@ -160,21 +180,23 @@ export function renderIndexMarkdown(entries) {
 
 /**
  * @param {string} vaultRoot
+ * @param {LexiconConfigEnabled} config
  * @returns {{ entries: LexiconEntry[], markdown: string, outputPath: string }}
  */
-export function buildLexiconIndex(vaultRoot) {
-    const entries = collectLexiconEntries(vaultRoot);
-    const markdown = renderIndexMarkdown(entries);
-    const outputPath = path.join(vaultRoot, LEXICON_DIR, INDEX_BASENAME);
-    return { entries, markdown, outputPath };
+export function buildLexiconIndex(vaultRoot, config) {
+    const entries = collectLexiconEntries(vaultRoot, config);
+    const markdown = renderIndexMarkdown(entries, config);
+    const { indexFilePath } = resolvePathsFromConfig(config, vaultRoot);
+    return { entries, markdown, outputPath: indexFilePath };
 }
 
 /**
  * @param {string} vaultRoot
+ * @param {LexiconConfigEnabled} config
  * @returns {number} Number of entries written
  */
-export function writeLexiconIndex(vaultRoot) {
-    const { entries, markdown, outputPath } = buildLexiconIndex(vaultRoot);
+export function writeLexiconIndex(vaultRoot, config) {
+    const { entries, markdown, outputPath } = buildLexiconIndex(vaultRoot, config);
     fs.writeFileSync(outputPath, markdown, 'utf-8');
     return entries.length;
 }

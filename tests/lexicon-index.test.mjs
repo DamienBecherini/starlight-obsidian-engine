@@ -4,19 +4,33 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { parseLexiconBlock } from '../config/lexicon.mjs';
 import {
     collectLexiconEntries,
     escapeTableCell,
     parseLexiconFrontmatter,
     renderIndexMarkdown,
     writeLexiconIndex,
-    GLOSSARY_BASENAME,
-    INDEX_BASENAME,
-    LEXICON_TAG,
 } from '../scripts/lib/lexicon-index.mjs';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+/** @returns {import('../config/lexicon.mjs').LexiconConfigEnabled} */
+function zthLikeConfig(overrides = {}) {
+    const base = parseLexiconBlock({
+        enabled: true,
+        directory: '00-lexique',
+        entryTag: 'lexique',
+        hubPage: 'glossaire-ia.md',
+        indexPage: 'index-lexique.md',
+        sortLocale: 'fr',
+        index: {
+            title: 'Index du lexique',
+            description: 'Liste alphabétique de toutes les fiches du lexique IA on-premise.',
+            intro: 'Liste générée automatiquement au build. Pour une lecture guidée, voir [[00-lexique/glossaire-ia|Glossaire IA]].',
+        },
+    });
+    assert.equal(base.enabled, true);
+    return { .../** @type {import('../config/lexicon.mjs').LexiconConfigEnabled} */ (base), ...overrides };
+}
 
 test('parseLexiconFrontmatter reads title, description, and tags', () => {
     const meta = parseLexiconFrontmatter(
@@ -34,8 +48,9 @@ test('escapeTableCell escapes pipe characters', () => {
 });
 
 test('collectLexiconEntries sorts alphabetically and excludes hub pages', () => {
+    const config = zthLikeConfig();
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'lexicon-test-'));
-    const lexDir = path.join(tmp, '00-lexique');
+    const lexDir = path.join(tmp, config.directory);
     fs.mkdirSync(lexDir, { recursive: true });
 
     const write = (name, yaml) => {
@@ -46,26 +61,32 @@ test('collectLexiconEntries sorts alphabetically and excludes hub pages', () => 
         );
     };
 
-    write('zebra.md', `title: Zebra\ndescription: Last\ntags:\n  - ${LEXICON_TAG}`);
-    write('alpha.md', `title: Alpha\ndescription: First\ntags:\n  - ${LEXICON_TAG}`);
-    fs.writeFileSync(path.join(lexDir, GLOSSARY_BASENAME), `---\ntitle: Hub\n---\n`, 'utf-8');
+    write('zebra.md', `title: Zebra\ndescription: Last\ntags:\n  - ${config.entryTag}`);
+    write('alpha.md', `title: Alpha\ndescription: First\ntags:\n  - ${config.entryTag}`);
+    fs.writeFileSync(
+        path.join(lexDir, config.hubPage),
+        `---\ntitle: Hub\n---\n`,
+        'utf-8',
+    );
     fs.writeFileSync(
         path.join(lexDir, 'ignored.md'),
         `---\ntitle: Ignored\ndescription: x\ntags:\n  - other\n---\n`,
         'utf-8',
     );
 
-    const entries = collectLexiconEntries(tmp);
+    const entries = collectLexiconEntries(tmp, config);
     assert.equal(entries.length, 2);
     assert.equal(entries[0].title, 'Alpha');
     assert.equal(entries[1].title, 'Zebra');
     assert.equal(entries[0].slug, 'alpha');
 });
 
-test('renderIndexMarkdown includes wiki links and no duplicate H1', () => {
-    const md = renderIndexMarkdown([
-        { slug: 'ram', title: 'RAM', description: 'Mémoire', warnings: [] },
-    ]);
+test('renderIndexMarkdown uses config directory and index frontmatter', () => {
+    const config = zthLikeConfig();
+    const md = renderIndexMarkdown(
+        [{ slug: 'ram', title: 'RAM', description: 'Mémoire', warnings: [] }],
+        config,
+    );
     assert.match(md, /\[RAM\]\(\/00-lexique\/ram\/\)/);
     assert.match(md, /title: Index du lexique/);
     assert.match(md, /\| Terme \| Définition \|/);
@@ -73,26 +94,49 @@ test('renderIndexMarkdown includes wiki links and no duplicate H1', () => {
     assert.doesNotMatch(md, /^# /m);
 });
 
+test('renderIndexMarkdown supports custom glossary directory', () => {
+    const config = zthLikeConfig({
+        directory: 'glossary',
+        hubPage: 'hub.md',
+        indexPage: 'all-terms.md',
+        index: {
+            title: 'All terms',
+            description: 'Full list',
+            intro: 'Generated.',
+        },
+    });
+    const md = renderIndexMarkdown(
+        [{ slug: 'term', title: 'Term', description: 'Def', warnings: [] }],
+        config,
+    );
+    assert.match(md, /\[Term\]\(\/glossary\/term\/\)/);
+});
+
 test('writeLexiconIndex respects vault gitignore', () => {
+    const config = zthLikeConfig();
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'lexicon-gitignore-'));
-    const lexDir = path.join(tmp, '00-lexique');
+    const lexDir = path.join(tmp, config.directory);
     fs.mkdirSync(lexDir, { recursive: true });
-    fs.writeFileSync(path.join(tmp, '.gitignore'), '00-lexique/secret.md\n', 'utf-8');
+    fs.writeFileSync(
+        path.join(tmp, '.gitignore'),
+        `${config.directory}/secret.md\n`,
+        'utf-8',
+    );
 
     fs.writeFileSync(
         path.join(lexDir, 'public.md'),
-        `---\ntitle: Public\ndescription: ok\ntags:\n  - ${LEXICON_TAG}\n---\n`,
+        `---\ntitle: Public\ndescription: ok\ntags:\n  - ${config.entryTag}\n---\n`,
         'utf-8',
     );
     fs.writeFileSync(
         path.join(lexDir, 'secret.md'),
-        `---\ntitle: Secret\ndescription: hidden\ntags:\n  - ${LEXICON_TAG}\n---\n`,
+        `---\ntitle: Secret\ndescription: hidden\ntags:\n  - ${config.entryTag}\n---\n`,
         'utf-8',
     );
 
-    const count = writeLexiconIndex(tmp);
+    const count = writeLexiconIndex(tmp, config);
     assert.equal(count, 1);
-    const out = fs.readFileSync(path.join(lexDir, INDEX_BASENAME), 'utf-8');
+    const out = fs.readFileSync(path.join(lexDir, config.indexPage), 'utf-8');
     assert.match(out, /Public/);
     assert.doesNotMatch(out, /Secret/);
 });
