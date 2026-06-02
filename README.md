@@ -390,25 +390,42 @@ Notes:
 
 ### Private / unpublished notes
 
-The engine reads the vault **`.gitignore`** at build time and **excludes matching Markdown/MDX** from
-the site. Deploy only uploads `dist/`, so gitignored notes never reach the web. With mirror mode (default),
-pages that were previously published but are now gitignored are **removed from the remote** on the next deploy.
+The engine excludes Markdown/MDX from the site when paths match any of:
+
+1. **Hardcoded rules** — vault-root `README.md` / `readme.txt`, and the entire `_private/` tree (even if negated in `.gitignore`).
+2. **`publish.exclude` in `site.config.json`** — version-controlled paths that must stay out of the public site (agent plans, skills, Cursor rules, etc.).
+3. **Vault `.gitignore`** — files that should neither be committed nor published.
+
+Deploy only uploads `dist/`, so excluded notes never reach the web. With mirror mode (default),
+pages that were previously published but are now excluded are **removed from the remote** on the next deploy.
+
+Example in the vault's `site.config.json`:
+
+```json
+{
+  "publish": {
+    "exclude": [
+      "docs/plans/**",
+      ".agents/**",
+      ".cursor/**"
+    ]
+  }
+}
+```
 
 Convention in the vault:
 
 ```
 README.md          ← repository docs at the vault root (GitHub); never built as a site page
 _private/          ← confidential notes (gitignored except _private/README.md placeholder)
-.gitignore         ← any rule here also excludes files from the build
+.gitignore         ← git-only exclusions (also excluded from the build)
+site.config.json   ← publish.exclude for tracked-but-unpublished folders
 ```
 
-The vault-root `README.md` and the entire `_private/` tree are **always** excluded from the build, even
-if a file is negated in `.gitignore` for Git tracking (e.g. the `_private/README.md` placeholder).
+Add custom paths to `.gitignore` when content should not be in Git. Use `publish.exclude` when content
+should be versioned but not published. Do not reference private pages in `site.config.json` sidebar.
 
-Add custom paths to the vault `.gitignore` for other unpublished content. Do not reference private pages
-in `site.config.json` sidebar.
-
-With `--no-mirror`, gitignored pages already online are **not** deleted from the server automatically.
+With `--no-mirror`, excluded pages already online are **not** deleted from the server automatically.
 
 ## Build analysis & bundle size
 

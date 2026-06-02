@@ -1,5 +1,5 @@
 // @ts-check
-import { loadVaultGitignore, entryPathToVaultRelative } from '../gitignore.mjs';
+import { loadVaultPublishFilter, entryPathToVaultRelative } from '../gitignore.mjs';
 
 /**
  * @typedef {import('astro/loaders').Loader} Loader
@@ -7,14 +7,15 @@ import { loadVaultGitignore, entryPathToVaultRelative } from '../gitignore.mjs';
  */
 
 /**
- * Wraps a Starlight/glob docs loader and skips vault `.gitignore` paths (and vault-root
- * README.md) **before** schema validation, then removes any matching entries from the store.
+ * Wraps a Starlight/glob docs loader and skips unpublished vault paths (`publish.exclude`,
+ * `.gitignore`, `_private/`, vault-root README) **before** schema validation, then removes any
+ * matching entries from the store.
  *
  * @param {{ inner: Loader, vaultRoot: string, engineRoot: string }} options
  * @returns {Loader}
  */
 export function vaultAwareDocsLoader({ inner, vaultRoot, engineRoot }) {
-    const isIgnored = loadVaultGitignore(vaultRoot);
+    const isIgnored = loadVaultPublishFilter(vaultRoot);
 
     /**
      * @param {string | undefined} filePath Absolute or engine-relative path.

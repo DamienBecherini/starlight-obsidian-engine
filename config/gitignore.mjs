@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import ignore from 'ignore';
+import { loadPublishExcludePatterns } from './publish.mjs';
 
 /** Vault folder for confidential notes — never published, even if negated in `.gitignore`. */
 const PRIVATE_PREFIX = '_private/';
@@ -20,12 +21,19 @@ function isVaultMetaFile(vaultRelativePosixPath) {
 }
 
 /**
- * Loads the vault root `.gitignore` into a matcher function.
+ * Loads vault publish exclusions: `site.config.json` publish.exclude, then `.gitignore`.
+ * Hardcoded `_private/` and vault-root README are always excluded afterward.
  * @param {string} vaultRoot Absolute path to the vault repository root.
  * @returns {(vaultRelativePosixPath: string) => boolean}
  */
-export function loadVaultGitignore(vaultRoot) {
+export function loadVaultPublishFilter(vaultRoot) {
     const ig = ignore();
+
+    const publishPatterns = loadPublishExcludePatterns(vaultRoot);
+    if (publishPatterns.length) {
+        ig.add(publishPatterns);
+    }
+
     const gitignorePath = path.join(vaultRoot, '.gitignore');
     if (fs.existsSync(gitignorePath)) {
         ig.add(fs.readFileSync(gitignorePath, 'utf-8'));
@@ -39,6 +47,11 @@ export function loadVaultGitignore(vaultRoot) {
         }
         return ig.ignores(vaultRelativePosixPath);
     };
+}
+
+/** @deprecated Use {@link loadVaultPublishFilter}. Kept for existing imports. */
+export function loadVaultGitignore(vaultRoot) {
+    return loadVaultPublishFilter(vaultRoot);
 }
 
 /**

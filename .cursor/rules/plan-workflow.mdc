@@ -1,0 +1,19 @@
+---
+description: Plan creation workflow for this engine repository
+alwaysApply: false
+---
+
+# Plan Workflow
+
+When the user asks to create a plan:
+
+- Save the plan in `docs/plans/` of the repository that owns the requested work.
+- If `docs/plans/` does not exist, create it in that repository.
+- Name the file `YYYY_MM_DD_HH-MM_<branch-slug>_<plan-title>.plan.md`.
+- Use local current time for `YYYY_MM_DD_HH-MM`.
+- Build `<branch-slug>` from the current git branch by replacing `/` with `__`.
+- Normalize `<plan-title>` to lowercase ASCII kebab-case.
+- Include the goal, scope, files to create/modify, execution tasks, and validation steps.
+- For engine work, prefer validation with `npm test` and, when relevant, `npm run build` or `npm run test:build`.
+- If the user asks to execute the plan, append a final implementation/build report to the same plan file with changed files, validation evidence, and limitations.
+- Do not create commits unless the user explicitly asks.
