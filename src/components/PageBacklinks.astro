@@ -23,11 +23,16 @@ const entries = currentSlug
     : [];
 
 const lexicon = loadLexiconConfig(vaultRoot);
-const tags = route.entry.data.tags ?? [];
+const lexiconDirectory = isLexiconEnabled(lexicon) ? lexicon.directory : '';
+const isLexiconEntryPath =
+    Boolean(lexiconDirectory) &&
+    Boolean(currentSlug) &&
+    (currentSlug === lexiconDirectory ||
+        currentSlug.startsWith(`${lexiconDirectory}/`));
 const isLexiconPage =
     isLexiconEnabled(lexicon) &&
-    Array.isArray(tags) &&
-    tags.includes(lexicon.entryTag);
+    isLexiconEntryPath &&
+    !exclusions.excludeTargetSlugs.has(currentSlug ?? '');
 
 const heading = isLexiconPage ? 'Pages qui mentionnent ce terme' : 'Références entrantes';
 

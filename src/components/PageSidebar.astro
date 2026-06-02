@@ -7,18 +7,23 @@ const { toc } = Astro.locals.starlightRoute;
 ---
 
 {
-    toc && (
+    toc ? (
         <>
             <div class="lg:sl-hidden">
                 <MobileTableOfContents />
+                <PageBacklinks />
             </div>
             <div class="right-sidebar-panel sl-hidden lg:sl-block">
-                <div class="sl-container">
+                <div class="sl-container page-sidebar-toc">
                     <TableOfContents />
                 </div>
                 <PageBacklinks />
             </div>
         </>
+    ) : (
+        <div class="right-sidebar-panel sl-hidden lg:sl-block">
+            <PageBacklinks />
+        </div>
     )
 }
 
@@ -29,6 +34,12 @@ const { toc } = Astro.locals.starlightRoute;
         }
         .right-sidebar-panel > .sl-container {
             width: calc(var(--sl-sidebar-width) - 2 * var(--sl-sidebar-pad-x));
+        }
+        /* Cap TOC height so backlinks stay visible below without scrolling the whole sidebar. */
+        .page-sidebar-toc {
+            max-height: min(50vh, 24rem);
+            overflow-y: auto;
+            scrollbar-width: thin;
         }
         .right-sidebar-panel :global(h2) {
             color: var(--sl-color-white);
