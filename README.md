@@ -84,6 +84,14 @@ npm run dev                     # http://localhost:4321
 The engine reads `url` at build time and sets Astro's `site` option (sitemap, canonical URLs). Omit `url`
 if the site is local-only during development.
 
+### Lexicon index (`index-lexique.md`)
+
+`predev` and `prebuild` run `npm run lexicon:index`, which scans `00-lexique/*.md` in the vault (tag
+`lexique`, respecting `.gitignore`) and writes a full alphabetical table to `00-lexique/index-lexique.md`.
+The curated hub remains `00-lexique/glossaire-ia.md` in the vault (with a wiki link to the full index).
+Commit `index-lexique.md` with the vault when you
+add or change lexicon entries. The sidebar lists only **Glossaire IA** (not every lexicon page).
+
 ## Scripts
 
 | Command | Purpose |
@@ -92,6 +100,7 @@ if the site is local-only during development.
 | `npm run build` | Static build (`dist/`) |
 | `npm run preview` | Preview the build |
 | `npm run link:vault` | (Re)create the junction `src/content/docs` → `VAULT_PATH` |
+| `npm run lexicon:index` | Regenerate `00-lexique/index-lexique.md` in the vault from lexicon frontmatter |
 | `npm run publish` | Git sync (optional) → build → remote upload (see [Publishing](#publishing)) |
 | `npm run deploy` | Build + remote upload (no git) |
 | `npm run upload` | Remote upload only (existing `dist/`, no git, no build) |
