@@ -201,6 +201,51 @@ export function ensureManifest(manifest, config) {
 }
 
 /**
+ * @param {unknown} raw
+ * @returns {DeployManifest | null}
+ */
+export function parseManifestJson(raw) {
+    if (!raw || typeof raw !== 'object' || !/** @type {DeployManifest} */ (raw).files) return null;
+    return /** @type {DeployManifest} */ (raw);
+}
+
+/**
+ * Picks the best manifest when local and remote copies exist (CI / multi-machine).
+ * Remote wins when local is absent; otherwise the newer `updatedAt` wins.
+ * @param {DeployManifest | null} local
+ * @param {DeployManifest | null} remote
+ * @param {DeployKeyInput} config
+ * @returns {DeployManifest}
+ */
+export function mergeManifestSources(local, remote, config) {
+    const key = buildDeployKey(config);
+    const localOk = local && local.deployKey === key ? local : null;
+    const remoteOk = remote && remote.deployKey === key ? remote : null;
+
+    if (!localOk && !remoteOk) {
+        if ((local && local.deployKey !== key) || (remote && remote.deployKey !== key)) {
+            console.warn(
+                '⚠️  Deploy manifest target mismatch (host/path changed). Starting fresh manifest for this target.',
+            );
+        }
+        return emptyManifest(config);
+    }
+    if (!localOk && remoteOk) {
+        console.log('ℹ️  Using remote deploy manifest (no local copy).');
+        return remoteOk;
+    }
+    if (localOk && !remoteOk) return localOk;
+
+    const localTime = Date.parse(localOk.updatedAt || '') || 0;
+    const remoteTime = Date.parse(remoteOk.updatedAt || '') || 0;
+    if (remoteTime > localTime) {
+        console.log('ℹ️  Using remote deploy manifest (newer than local).');
+        return remoteOk;
+    }
+    return localOk;
+}
+
+/**
  * @param {Map<string, ManifestEntry>} local
  * @param {DeployManifest} manifest
  * @returns {ManifestDiff}
@@ -283,11 +328,15 @@ export function manifestFromLocal(config, local, vaultRoot) {
  * @param {string} distDir
  * @param {DeployKeyInput} config
  * @param {(done: number, total: number, rel: string) => void} [onProgress]
+ * @param {{ remoteManifest?: DeployManifest | null }} [options]
  * @returns {Promise<{ manifest: DeployManifest, diff: ManifestDiff }>}
  */
-export async function planIncrementalDeploy(distDir, config, onProgress) {
+export async function planIncrementalDeploy(distDir, config, onProgress, options = {}) {
     const local = await hashDistTree(distDir, onProgress);
-    const manifest = ensureManifest(loadManifest(), config);
+    const localManifest = loadManifest();
+    const manifest = options.remoteManifest !== undefined
+        ? mergeManifestSources(localManifest, options.remoteManifest, config)
+        : ensureManifest(localManifest, config);
     const diff = diffDistAgainstManifest(local, manifest);
     attachUploadAbsPaths(distDir, diff);
     return { manifest, diff };

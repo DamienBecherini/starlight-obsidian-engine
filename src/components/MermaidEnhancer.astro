@@ -413,6 +413,24 @@
     observer.observe(document.body, { childList: true, subtree: true });
 
     // Initial scan + safety net on Starlight navigation (idempotent thanks to the SVG marker).
+    const teardownAllMermaid = (): void => {
+        document.querySelectorAll<HTMLElement>('.mermaid').forEach((container) => {
+            const state = states.get(container);
+            if (state?.panZoom) {
+                try {
+                    state.panZoom.destroy();
+                } catch {
+                    /* instance already detached */
+                }
+                state.panZoom = null;
+            }
+            const svg = container.querySelector<EnhancedSvg>('svg');
+            if (svg) svg.__mermaidEnhanced = false;
+        });
+        currentFsContainer = null;
+    };
+
     queueScan();
+    document.addEventListener('astro:before-swap', teardownAllMermaid);
     document.addEventListener('astro:page-load', queueScan);
 </script>

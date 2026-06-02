@@ -11,7 +11,10 @@ import {
     filterBacklinksForDisplay,
     normalizeLinkTarget,
     resolveLinkTarget,
+    resolveLinkTargetFromSource,
+    resolveLinkTargetPath,
     buildPublishedIndex,
+    collectUnresolvedLinks,
 } from '../scripts/lib/link-graph.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -23,9 +26,27 @@ test('normalizeLinkTarget strips anchors and extension', () => {
 });
 
 test('extractWikiTargets and markdown internal links', () => {
-    const body = '[[page-b|B]] and [x](/page-c/).';
+    const body = '[[page-b|B]] and [x](/page-c/) and [rel](../page-d.md).';
     assert.deepEqual(extractWikiTargets(body), ['page-b']);
-    assert.deepEqual(extractMarkdownInternalTargets(body), ['page-c']);
+    assert.deepEqual(extractMarkdownInternalTargets(body), ['/page-c/', '../page-d.md']);
+});
+
+test('resolveLinkTargetPath resolves relative markdown paths', () => {
+    assert.equal(resolveLinkTargetPath('/page-c/', 'page-a'), 'page-c');
+    assert.equal(resolveLinkTargetPath('../page-d.md', '01-fondations/page-a'), 'page-d');
+    assert.equal(resolveLinkTargetPath('sibling', '01-fondations/page-a'), 'sibling');
+});
+
+test('resolveLinkTargetFromSource resolves relative targets', () => {
+    const { publishedSlugs, aliasToSlug } = buildPublishedIndex(fixtureVault);
+    assert.equal(
+        resolveLinkTargetFromSource('../page-b', '01-fondations/page-a', publishedSlugs, aliasToSlug),
+        'page-b',
+    );
+    assert.equal(
+        resolveLinkTargetFromSource('/page-b/', 'page-a', publishedSlugs, aliasToSlug),
+        'page-b',
+    );
 });
 
 test('buildLinkGraph resolves alias and ignores gitignored drafts', () => {

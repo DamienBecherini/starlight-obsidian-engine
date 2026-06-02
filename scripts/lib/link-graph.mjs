@@ -10,7 +10,7 @@ import {
 import { readLexiconEntry } from './lexicon-index.mjs';
 
 const WIKI_LINK_RE = /\[\[([^\]|#]+)(?:\|([^\]]+))?\]\]/g;
-const MD_INTERNAL_LINK_RE = /\]\(\/([^)\s#]+)\/?\)/g;
+const MD_INTERNAL_LINK_RE = /\]\(([^)\s#]+)\)/g;
 
 /** @typedef {{ from: string, title: string, section: string }} BacklinkEntry */
 
@@ -80,10 +80,32 @@ export function extractMarkdownInternalTargets(body) {
     /** @type {string[]} */
     const targets = [];
     for (const match of body.matchAll(MD_INTERNAL_LINK_RE)) {
-        const target = normalizeLinkTarget(match[1]);
-        if (target && !/^https?:/i.test(target)) targets.push(target);
+        const raw = match[1].trim();
+        if (!raw || /^https?:/i.test(raw) || /^mailto:/i.test(raw) || raw.startsWith('#')) continue;
+        targets.push(raw);
     }
     return targets;
+}
+
+/**
+ * Normalizes a link target relative to the source page slug (posix vault path without extension).
+ * @param {string} raw
+ * @param {string} fromSlug
+ * @returns {string}
+ */
+export function resolveLinkTargetPath(raw, fromSlug) {
+    let t = raw.trim();
+    const hash = t.indexOf('#');
+    if (hash !== -1) t = t.slice(0, hash);
+    t = t.replace(/\.mdx?$/i, '');
+    if (t.startsWith('/')) return normalizeLinkTarget(t);
+    if (t.startsWith('./') || t.startsWith('../')) {
+        const fromDir = fromSlug.includes('/') ? path.posix.dirname(fromSlug) : '';
+        const joined = fromDir ? path.posix.join(fromDir, t) : t;
+        return path.posix.normalize(joined).replace(/^\.\//, '');
+    }
+    // Obsidian wiki-links: bare slug or vault-root path (e.g. 00-lexique/apu).
+    return normalizeLinkTarget(t);
 }
 
 /**
@@ -201,6 +223,18 @@ export function resolveLinkTarget(raw, publishedSlugs, aliasToSlug) {
 }
 
 /**
+ * @param {string} raw
+ * @param {string} fromSlug
+ * @param {Set<string>} publishedSlugs
+ * @param {Map<string, string>} aliasToSlug
+ * @returns {string | null}
+ */
+export function resolveLinkTargetFromSource(raw, fromSlug, publishedSlugs, aliasToSlug) {
+    const pathTarget = resolveLinkTargetPath(raw, fromSlug);
+    return resolveLinkTarget(pathTarget, publishedSlugs, aliasToSlug);
+}
+
+/**
  * @param {string} vaultRoot
  * @param {{ sortLocale?: string }} [options]
  * @returns {LinkGraphDocument}
@@ -238,7 +272,7 @@ export function buildLinkGraph(vaultRoot, options = {}) {
             ];
 
             for (const rawTarget of targets) {
-                const toSlug = resolveLinkTarget(rawTarget, publishedSlugs, aliasToSlug);
+                const toSlug = resolveLinkTargetFromSource(rawTarget, fromSlug, publishedSlugs, aliasToSlug);
                 if (!toSlug || toSlug === fromSlug) continue;
 
                 if (!backlinkMaps[toSlug]) backlinkMaps[toSlug] = new Map();
@@ -267,6 +301,57 @@ export function buildLinkGraph(vaultRoot, options = {}) {
         generatedAt: new Date().toISOString(),
         backlinks,
     };
+}
+
+/** @typedef {{ from: string, raw: string, path: string }} UnresolvedLink */
+
+/**
+ * @param {string} vaultRoot
+ * @returns {UnresolvedLink[]}
+ */
+export function collectUnresolvedLinks(vaultRoot) {
+    const { publishedSlugs, aliasToSlug } = buildPublishedIndex(vaultRoot);
+    const isIgnored = loadVaultGitignore(vaultRoot);
+    /** @type {UnresolvedLink[]} */
+    const unresolved = [];
+
+    /**
+     * @param {string} dir
+     */
+    function walk(dir) {
+        if (!fs.existsSync(dir)) return;
+        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+            if (entry.name.startsWith('.') || entry.name === 'node_modules') continue;
+            const full = path.join(dir, entry.name);
+            if (entry.isDirectory()) {
+                walk(full);
+                continue;
+            }
+            if (!/\.mdx?$/i.test(entry.name)) continue;
+
+            const vaultRel = path.relative(vaultRoot, full).split(path.sep).join('/');
+            if (isIgnored(vaultRel)) continue;
+
+            const fromSlug = vaultRel.replace(/\.mdx?$/i, '');
+            const body = stripFrontmatter(fs.readFileSync(full, 'utf-8'));
+            const targets = [
+                ...extractWikiTargets(body),
+                ...extractMarkdownInternalTargets(body),
+            ];
+
+            for (const rawTarget of targets) {
+                const pathTarget = resolveLinkTargetPath(rawTarget, fromSlug);
+                const toSlug = resolveLinkTarget(pathTarget, publishedSlugs, aliasToSlug);
+                if (toSlug && toSlug !== fromSlug) continue;
+                if (toSlug === fromSlug) continue;
+                unresolved.push({ from: fromSlug, raw: rawTarget, path: pathTarget });
+            }
+        }
+    }
+
+    walk(vaultRoot);
+    unresolved.sort((a, b) => a.path.localeCompare(b.path) || a.from.localeCompare(b.from));
+    return unresolved;
 }
 
 /**

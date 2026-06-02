@@ -1,5 +1,6 @@
 // @ts-check
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import * as readline from 'node:readline/promises';
@@ -18,8 +19,125 @@ import {
     markUploaded,
     markDeleted,
     saveManifest,
+    parseManifestJson,
+    MANIFEST_FILENAME,
 } from './deploy-manifest.mjs';
 import { isProtectedRel, compareUploadParentKeys, groupUploadsByParent } from './deploy-paths.mjs';
+/** Shared SFTP client: parallel uploads (single connection). */
+const SFTP_UPLOAD_CONCURRENCY = 8;
+
+/**
+ * @template T
+ * @param {T[]} items
+ * @param {number} limit
+ * @param {(item: T, index: number) => Promise<void>} fn
+ */
+async function runPool(items, limit, fn) {
+    if (!items.length) return;
+    let index = 0;
+    async function worker() {
+        while (index < items.length) {
+            const i = index++;
+            await fn(items[i], i);
+        }
+    }
+    const workers = Math.min(limit, items.length);
+    await Promise.all(Array.from({ length: workers }, () => worker()));
+}
+
+/**
+ * @param {string} normalizedRemote
+ */
+function remoteManifestPath(normalizedRemote) {
+    const base = normalizedRemote.replace(/\/+$/, '');
+    return base ? `${base}/${MANIFEST_FILENAME}` : MANIFEST_FILENAME;
+}
+
+/**
+ * @param {SftpClient} sftp
+ * @param {string} normalizedRemote
+ * @returns {Promise<import('./deploy-manifest.mjs').DeployManifest | null>}
+ */
+async function fetchRemoteManifestSftp(sftp, normalizedRemote) {
+    const remotePath = remoteManifestPath(normalizedRemote);
+    try {
+        if (!(await sftp.exists(remotePath))) return null;
+        const data = await sftp.get(remotePath);
+        const text = Buffer.isBuffer(data) ? data.toString('utf8') : String(data);
+        return parseManifestJson(JSON.parse(text));
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * @param {SftpClient} sftp
+ * @param {string} normalizedRemote
+ * @param {import('./deploy-manifest.mjs').DeployManifest} manifest
+ */
+async function pushRemoteManifestSftp(sftp, normalizedRemote, manifest) {
+    const remotePath = remoteManifestPath(normalizedRemote);
+    const body = `${JSON.stringify(manifest, null, 2)}\n`;
+    await sftp.put(Buffer.from(body, 'utf8'), remotePath);
+}
+
+/**
+ * @param {FtpClient} client
+ * @param {string} remoteBase
+ * @returns {Promise<import('./deploy-manifest.mjs').DeployManifest | null>}
+ */
+async function fetchRemoteManifestFtps(client, remoteBase) {
+    const remotePath = remoteManifestPath(remoteBase);
+    const tmpPath = path.join(os.tmpdir(), `deploy-manifest-${Date.now()}.json`);
+    try {
+        await client.downloadTo(tmpPath, remotePath);
+        const text = fs.readFileSync(tmpPath, 'utf8');
+        return parseManifestJson(JSON.parse(text));
+    } catch {
+        return null;
+    } finally {
+        try {
+            fs.unlinkSync(tmpPath);
+        } catch {
+            /* ignore */
+        }
+    }
+}
+
+/**
+ * @param {FtpClient} client
+ * @param {string} remoteBase
+ * @param {import('./deploy-manifest.mjs').DeployManifest} manifest
+ */
+async function pushRemoteManifestFtps(client, remoteBase, manifest) {
+    const remotePath = remoteManifestPath(remoteBase);
+    const tmpPath = path.join(os.tmpdir(), `deploy-manifest-upload-${Date.now()}.json`);
+    const body = `${JSON.stringify(manifest, null, 2)}\n`;
+    fs.writeFileSync(tmpPath, body, 'utf8');
+    try {
+        await client.uploadFrom(tmpPath, remotePath);
+    } finally {
+        try {
+            fs.unlinkSync(tmpPath);
+        } catch {
+            /* ignore */
+        }
+    }
+}
+
+/**
+ * @param {string} vaultRoot
+ * @param {import('./deploy-manifest.mjs').DeployManifest} manifest
+ * @param {{ sftp?: SftpClient, normalizedRemote?: string, ftpsClient?: FtpClient, remoteBase?: string }} remote
+ */
+async function persistDeployManifest(vaultRoot, manifest, remote = {}) {
+    saveManifest(manifest, vaultRoot);
+    if (remote.sftp && remote.normalizedRemote) {
+        await pushRemoteManifestSftp(remote.sftp, remote.normalizedRemote, manifest);
+    } else if (remote.ftpsClient && remote.remoteBase !== undefined) {
+        await pushRemoteManifestFtps(remote.ftpsClient, remote.remoteBase, manifest);
+    }
+}
 
 /**
  * @typedef {'ftps' | 'sftp'} DeployProtocol
@@ -337,7 +455,7 @@ function printIncrementalPreview(diff, deleteEnabled) {
     const SAMPLE = 50;
     const uploadRels = diff.toUpload.map((u) => u.rel);
     const uploadBytes = diff.toUpload.reduce((s, u) => s + u.entry.size, 0);
-    console.log('\n📋 Planned changes (incremental, local manifest):');
+    console.log('\n📋 Planned changes (incremental, synced manifest):');
     console.log(`   + upload:     ${uploadRels.length} file(s) (${humanBytes(uploadBytes)})`);
     console.log(`   ~ skip:       ${diff.unchanged} unchanged`);
     if (deleteEnabled) {
@@ -391,17 +509,28 @@ async function uploadSelectedFilesSftp(sftp, normalizedRemote, uploads, manifest
     const vaultRoot = resolveVaultGitRoot();
     const progress = createUploadProgress({ totalFiles: uploads.length });
     let done = 0;
-    for (const { rel, abs, entry } of uploads) {
-        await ensureSftpDirs(sftp, normalizedRemote, rel);
+
+    /** @type {Set<string>} */
+    const parentDirs = new Set();
+    for (const { rel } of uploads) {
+        const parent = path.posix.dirname(rel);
+        if (parent !== '.') parentDirs.add(parent);
+    }
+    for (const parent of [...parentDirs].sort()) {
+        await ensureSftpDirs(sftp, normalizedRemote, `${parent}/.keep`);
+    }
+
+    await runPool(uploads, SFTP_UPLOAD_CONCURRENCY, async ({ rel, abs, entry }) => {
         await sftp.put(abs, sftpRemotePath(normalizedRemote, rel));
         markUploaded(manifest, rel, entry, vaultRoot, { persist: false });
         done += 1;
         transferState.fileOrdinal = done;
         transferState.lastFile = path.basename(rel);
         progress.onFile(done, rel);
-    }
+    });
+
     progress.finish();
-    saveManifest(manifest, vaultRoot);
+    await persistDeployManifest(vaultRoot, manifest, { sftp, normalizedRemote });
 }
 
 /**
@@ -419,7 +548,7 @@ async function deleteRemoteFilesSftp(sftp, normalizedRemote, relPaths, protect, 
         markDeleted(manifest, rel, vaultRoot, { persist: false });
         console.log(`  − ${rel}`);
     }
-    saveManifest(manifest, vaultRoot);
+    await persistDeployManifest(vaultRoot, manifest, { sftp, normalizedRemote });
 }
 
 /**
@@ -497,8 +626,9 @@ async function uploadDistSftpFull(config, distDir, mirror, askConfirm) {
 
         console.log('\n📝 Refreshing deploy manifest from dist/…');
         const local = await hashDistTree(distDir);
-        manifestFromLocal(config, local);
-        console.log('✅ Manifest updated.');
+        const refreshed = manifestFromLocal(config, local);
+        await persistDeployManifest(resolveVaultGitRoot(), refreshed, { sftp, normalizedRemote });
+        console.log('✅ Manifest updated (local + remote).');
     } catch (error) {
         console.error('❌ SFTP upload failed:', error);
         process.exit(1);
@@ -522,13 +652,7 @@ async function uploadDistSftpIncremental(config, distDir, mirror, askConfirm) {
     const transferState = { lastFile: '', bytesOverall: 0, fileOrdinal: 0 };
 
     try {
-        console.log('\n🔍 Incremental deploy (local manifest)…');
-        const { manifest, diff } = await planIncrementalDeploy(distDir, config, (done, total, rel) => {
-            if (done === 1 || done === total || done % 50 === 0) {
-                process.stdout.write(`\r   Hashing dist/ … ${done}/${total}  ${rel.slice(-40).padStart(40)}`);
-            }
-        });
-        if (process.stdout.isTTY) process.stdout.write('\n');
+        console.log('\n🔍 Incremental deploy (manifest sync)…');
 
         await sftp.connect({
             host: config.host,
@@ -538,6 +662,16 @@ async function uploadDistSftpIncremental(config, distDir, mirror, askConfirm) {
             privateKey: config.privateKey,
             passphrase: config.passphrase,
         });
+
+        console.log('   Syncing manifest from remote…');
+        const remoteManifest = await fetchRemoteManifestSftp(sftp, normalizedRemote);
+
+        const { manifest, diff } = await planIncrementalDeploy(distDir, config, (done, total, rel) => {
+            if (done === 1 || done === total || done % 50 === 0) {
+                process.stdout.write(`\r   Hashing dist/ … ${done}/${total}  ${rel.slice(-40).padStart(40)}`);
+            }
+        }, { remoteManifest });
+        if (process.stdout.isTTY) process.stdout.write('\n');
 
         console.log(`\nTarget: sftp://${config.host}:${config.port}${config.remotePath}`);
         if (protect.size) console.log(`Protected (never touched): ${[...protect].join(', ')}, dotfiles`);
@@ -967,7 +1101,7 @@ async function uploadSelectedFilesFtps(
 
     session.client.trackProgress();
     progress.finish();
-    saveManifest(manifest, vaultRoot);
+    await persistDeployManifest(vaultRoot, manifest, { ftpsClient: session.client, remoteBase });
 }
 
 /**
@@ -1013,6 +1147,7 @@ async function deleteRemoteFilesFtps(session, config, remoteBase, relPaths, prot
             saveManifest(manifest, vaultRoot);
         }
     }
+    await persistDeployManifest(vaultRoot, manifest, { ftpsClient: session.client, remoteBase });
 }
 
 /**
@@ -1215,8 +1350,12 @@ async function uploadDistFtpsFull(config, distDir, mirror, askConfirm) {
 
         console.log('\n📝 Refreshing deploy manifest from dist/…');
         const local = await hashDistTree(distDir);
-        manifestFromLocal(config, local);
-        console.log('✅ Manifest updated.');
+        const refreshed = manifestFromLocal(config, local);
+        await persistDeployManifest(resolveVaultGitRoot(), refreshed, {
+            ftpsClient: session.client,
+            remoteBase,
+        });
+        console.log('✅ Manifest updated (local + remote).');
     } catch (error) {
         handleFtpsUploadError(error);
     } finally {
@@ -1240,13 +1379,7 @@ async function uploadDistFtpsIncremental(config, distDir, mirror, askConfirm) {
     const transferState = { lastFile: '', bytesOverall: 0, fileOrdinal: 0 };
 
     try {
-        console.log('\n🔍 Incremental deploy (local manifest)…');
-        const { manifest, diff } = await planIncrementalDeploy(distDir, config, (done, total, rel) => {
-            if (done === 1 || done === total || done % 50 === 0) {
-                process.stdout.write(`\r   Hashing dist/ … ${done}/${total}  ${rel.slice(-40).padStart(40)}`);
-            }
-        });
-        if (process.stdout.isTTY) process.stdout.write('\n');
+        console.log('\n🔍 Incremental deploy (manifest sync)…');
 
         await session.client.access(ftpsAccessOptions(config));
         const loginDir = await session.client.pwd();
@@ -1254,6 +1387,16 @@ async function uploadDistFtpsIncremental(config, distDir, mirror, askConfirm) {
             remoteBase === '/'
                 ? loginDir.replace(/\/+$/, '') || '/'
                 : `${loginDir.replace(/\/+$/, '')}${remoteBase}`;
+
+        console.log('   Syncing manifest from remote…');
+        const remoteManifest = await fetchRemoteManifestFtps(session.client, remoteBase);
+
+        const { manifest, diff } = await planIncrementalDeploy(distDir, config, (done, total, rel) => {
+            if (done === 1 || done === total || done % 50 === 0) {
+                process.stdout.write(`\r   Hashing dist/ … ${done}/${total}  ${rel.slice(-40).padStart(40)}`);
+            }
+        }, { remoteManifest });
+        if (process.stdout.isTTY) process.stdout.write('\n');
 
         console.log(`\nTarget: ftps://${config.host}:${config.port} → ${absoluteTarget}`);
         if (protect.size) console.log(`Protected (never touched): ${[...protect].join(', ')}, dotfiles`);

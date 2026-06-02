@@ -6,6 +6,7 @@
     "lexicon:index": "node scripts/generate-lexicon-index.mjs",
     "lexicon:voir-aussi": "node scripts/format-lexicon-voir-aussi.mjs",
     "link-graph:build": "node scripts/build-link-graph.mjs",
+    "audit:links": "node scripts/audit-links.mjs",
     "predev": "node scripts/ensure-vault.mjs && node scripts/run-lexicon-if-enabled.mjs && node scripts/build-link-graph.mjs",
     "dev": "astro dev",
     "start": "astro dev",

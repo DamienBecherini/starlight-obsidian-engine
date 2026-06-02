@@ -9,6 +9,8 @@ import {
     diffDistAgainstManifest,
     emptyManifest,
     ensureManifest,
+    mergeManifestSources,
+    parseManifestJson,
     hashDistFile,
     hashDistTree,
     attachUploadAbsPaths,
@@ -129,4 +131,28 @@ test('loadManifest returns null for invalid JSON', () => {
     const loaded = loadManifest(dir);
     assert.equal(loaded, null);
     fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('mergeManifestSources prefers remote when local is absent', () => {
+    const remote = emptyManifest(config);
+    remote.updatedAt = '2026-06-01T12:00:00.000Z';
+    remote.files = { 'a.html': { sha256: 'aa', size: 1 } };
+    const merged = mergeManifestSources(null, remote, config);
+    assert.equal(merged.files['a.html']?.size, 1);
+});
+
+test('mergeManifestSources picks newer updatedAt', () => {
+    const local = emptyManifest(config);
+    local.updatedAt = '2026-06-01T10:00:00.000Z';
+    local.files = { 'a.html': { sha256: 'local', size: 1 } };
+    const remote = emptyManifest(config);
+    remote.updatedAt = '2026-06-02T10:00:00.000Z';
+    remote.files = { 'a.html': { sha256: 'remote', size: 2 } };
+    const merged = mergeManifestSources(local, remote, config);
+    assert.equal(merged.files['a.html']?.sha256, 'remote');
+});
+
+test('parseManifestJson rejects invalid shape', () => {
+    assert.equal(parseManifestJson({ version: 1 }), null);
+    assert.ok(parseManifestJson({ files: {} }));
 });

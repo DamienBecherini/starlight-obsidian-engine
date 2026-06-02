@@ -138,6 +138,7 @@ See [docs/plans/2026_06_01_14-00_main_link-graph-backlinks-phases-1-5.plan.md](d
 | `npm run lexicon:index` | Regenerate the vault lexicon index (`lexicon.indexPage`) from entry frontmatter |
 | `npm run lexicon:voir-aussi` | Upgrade `## Voir aussi` wiki links in lexicon entry pages |
 | `npm run link-graph:build` | Regenerate `src/generated/link-graph.json` from vault link graph |
+| `npm run audit:links` | List unresolved wiki/MD internal links in the vault (lexicon backlog aid) |
 | `npm run publish` | Git sync (optional) → build → remote upload (see [Publishing](#publishing)) |
 | `npm run deploy` | Build + remote upload (no git) |
 | `npm run upload` | Remote upload only (existing `dist/`, no git, no build) |
@@ -258,24 +259,36 @@ Repos that are clean but **ahead of origin** are pushed automatically.
 
 ### Incremental deploy (default)
 
-By default, `deploy`, `upload`, and `publish` use a **local deploy manifest** in the vault:
-`.deploy-manifest.json` (gitignored). After `npm run build`, the engine hashes every file in `dist/`
-and compares it to the manifest from the last **successful** deploy:
+By default, `deploy`, `upload`, and `publish` use a **deploy manifest** (SHA-256 of every file in the
+last successful deploy):
+
+- **Local copy:** `.deploy-manifest.json` in the vault root (gitignored).
+- **Remote copy:** same filename at `{DEPLOY_REMOTE_PATH}/.deploy-manifest.json` (dotfile beside
+  `dist/` contents; uploaded directly, not part of the static site).
+
+Before each incremental run, the engine **syncs the manifest from the remote** (when present) and merges
+it with the local copy: remote wins if local is absent (CI / fresh clone); otherwise the newer
+`updatedAt` wins. After upload or delete, both copies are updated.
+
+After `npm run build`, the engine hashes every file in `dist/` and compares it to the merged manifest:
 
 - **Upload** only new or changed files (no remote FTP listing — preview is instant).
 - **Delete** remote files that are no longer in `dist/` (obsolete `_astro` bundles, old Pagefind fragments, etc.).
-- **Update the manifest** after each file uploaded or deleted (safe to resume if FTPS drops mid-transfer).
+- **Update both manifests** after each file uploaded or deleted (safe to resume if FTPS drops mid-transfer).
 
-First deploy on a machine uploads everything and creates the manifest. If you change `DEPLOY_HOST` or
+First deploy on a target uploads everything and creates both manifests. If you change `DEPLOY_HOST` or
 `DEPLOY_REMOTE_PATH`, the manifest is reset automatically for the new target.
+
+Over **SFTP**, changed files upload in parallel (up to 8 concurrent `put` calls on one connection).
 
 Example preview:
 
 ```
-🔍 Incremental deploy (local manifest)
+🔍 Incremental deploy (manifest sync)
+   Syncing manifest from remote…
    Hashing dist/ … 274/274
 
-📋 Planned changes (incremental, local manifest):
+📋 Planned changes (incremental, synced manifest):
    + upload:     12 file(s) (420.5 KB)
    ~ skip:       262 unchanged
    − delete:     8 obsolete remote file(s)
@@ -284,7 +297,7 @@ Example preview:
 ### Full deploy (`--full`)
 
 Legacy behaviour: scan the remote tree (~10 s on FTPS), upload **all** of `dist/`, then mirror-walk
-the server to remove stale files. Regenerates the local manifest at the end. Use after manual edits on
+the server to remove stale files. Regenerates **local and remote** manifests at the end. Use after manual edits on
 the host, a corrupted manifest, or when you want to resync from scratch:
 
 ```bash
@@ -335,10 +348,11 @@ npm run publish
   ├─ Vault git  (cancel / commit / skip / push if ahead)
   ├─ Engine git (same)
   ├─ npm run build
-  └─ incremental FTPS/SFTP upload (vault .deploy-manifest.json)
+  └─ incremental FTPS/SFTP upload (local + remote `.deploy-manifest.json`)
 
-npm run deploy  →  validate config → build → incremental upload (manifest)
+npm run deploy  →  validate config → build → incremental upload (synced manifest)
 npm run upload  →  validate config → incremental upload (dist/ must already exist; run build first)
+npm run audit:links  →  list unresolved internal links in the vault (maintenance)
 ```
 
 ### Private site (Basic Auth)
@@ -383,7 +397,8 @@ Notes:
 
 - **Mirror is the default** (remote files absent locally are deleted). Use `--no-mirror` for additive
   uploads. Over SFTP, `DEPLOY_REMOTE_PATH` must be a dedicated directory (mirror refuses the server root).
-- **Dotfiles are skipped** during upload and **never deleted** by mirror (protects `.htaccess`, etc.);
+- **Dotfiles are skipped** during `dist/` upload and **never deleted** by mirror (protects `.htaccess`, etc.);
+  the deploy manifest (`.deploy-manifest.json`) is managed separately and stored at the remote deploy root;
   over FTPS, `DEPLOY_PROTECT` (default `cgi-bin`) adds extra protected top-level entries.
 - **Public URL:** set `url` in the vault's `site.config.json` (not in the engine). Enables the sitemap and
   absolute canonical URLs at build time.
