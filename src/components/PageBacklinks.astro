@@ -1,61 +1,32 @@
 ---
 import { loadLinkGraph } from '../../scripts/lib/link-graph-data.mjs';
-import {
-    filterBacklinksForDisplay,
-    getLexiconDisplayExclusions,
-} from '../../scripts/lib/link-graph.mjs';
-import { loadLexiconConfig, isLexiconEnabled } from '../../config/lexicon.mjs';
+import { getLexiconDisplayExclusions } from '../../scripts/lib/link-graph.mjs';
+import { isLexiconEnabled, loadLexiconConfig } from '../../config/lexicon.mjs';
 import { resolveVaultGitRoot } from '../../config/vault.mjs';
 import { siteHrefFromVaultSlug, vaultSlugFromRouteEntry } from '../lib/backlinks-routing.mjs';
+import { buildBacklinkPanel } from '../lib/backlinks-panel.mjs';
 
 const route = Astro.locals.starlightRoute;
 const vaultRoot = resolveVaultGitRoot();
 const currentSlug = vaultSlugFromRouteEntry(route.entry);
 const graph = loadLinkGraph();
-
 const exclusions = getLexiconDisplayExclusions(vaultRoot);
-const rawEntries = currentSlug ? (graph.backlinks[currentSlug] ?? []) : [];
-const entries = currentSlug
-    ? filterBacklinksForDisplay(rawEntries, currentSlug, {
-          excludeSourceSlugs: exclusions.excludeSourceSlugs,
-          excludeTargetSlugs: exclusions.excludeTargetSlugs,
-      })
-    : [];
-
 const lexicon = loadLexiconConfig(vaultRoot);
-const lexiconDirectory = isLexiconEnabled(lexicon) ? lexicon.directory : '';
-const isLexiconEntryPath =
-    Boolean(lexiconDirectory) &&
-    Boolean(currentSlug) &&
-    (currentSlug === lexiconDirectory ||
-        currentSlug.startsWith(`${lexiconDirectory}/`));
-const isLexiconPage =
-    isLexiconEnabled(lexicon) &&
-    isLexiconEntryPath &&
-    !exclusions.excludeTargetSlugs.has(currentSlug ?? '');
 
-const heading = isLexiconPage ? 'Pages qui mentionnent ce terme' : 'Références entrantes';
+const panel = buildBacklinkPanel({
+    currentSlug,
+    rawEntries: currentSlug ? (graph.backlinks[currentSlug] ?? []) : [],
+    lexicon,
+    exclusions,
+    sortLocale: isLexiconEnabled(lexicon) ? lexicon.sortLocale : 'fr',
+});
 
-/** @type {Map<string, typeof entries>} */
-const grouped = new Map();
-if (isLexiconPage) {
-    for (const e of entries) {
-        const key = e.section || '';
-        if (!grouped.has(key)) grouped.set(key, []);
-        grouped.get(key)?.push(e);
-    }
-} else {
-    grouped.set('', entries);
-}
-
+const { entries, isLexiconPage, heading, grouped: sortedGroups, shouldRender } = panel;
 const locale = route.entryMeta.locale ?? route.locale;
-const sortedGroups = [...grouped.entries()].sort(([a], [b]) =>
-    a.localeCompare(b, 'fr', { sensitivity: 'base' }),
-);
 ---
 
 {
-    entries.length > 0 && (
+    shouldRender && (
         <div class="page-backlinks">
             <h2>{heading}</h2>
             {isLexiconPage ? (
