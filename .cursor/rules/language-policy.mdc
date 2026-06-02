@@ -1,0 +1,16 @@
+---
+description: English for engine code and repo tooling; vault note language follows vault locale layout
+alwaysApply: true
+---
+
+# Language Policy
+
+## Code and comments
+
+Write all engine source code, inline comments, scripts, tests, agent skills, Cursor rules, plans, and repository documentation in **English**.
+
+## Vault note content (fiches)
+
+Mounted vault pages (`src/content/docs/**/*.md`, `src/content/docs/**/*.mdx`, or the external vault path) may use **any language** configured in the vault and implied by note location — for example French at the vault root and English under `en/`, as defined in `site.config.json` locales and folder layout.
+
+Do not translate or anglicize vault note content unless the user explicitly asks. Match the language of the target note path and locale.
