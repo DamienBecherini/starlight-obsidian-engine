@@ -1,0 +1,25 @@
+/* Backlinks panel — complements PageBacklinks.astro (right sidebar). */
+
+@layer starlight.components {
+    .page-backlinks__group + .page-backlinks__group {
+        margin-top: 0.5rem;
+    }
+
+    /*
+     * Keep the main column at Starlight’s intended width when the right sidebar
+     * (TOC + backlinks) is present — avoid flex-shrink squeezing .main-pane.
+     */
+    @media (min-width: 72rem) {
+        :root[data-has-sidebar][data-has-toc] .main-pane {
+            flex-shrink: 0;
+            min-width: calc(
+                var(--sl-content-width) +
+                    (100% - var(--sl-content-width) - var(--sl-sidebar-width)) / 2
+            );
+        }
+
+        :root[data-has-sidebar][data-has-toc] .right-sidebar-container {
+            flex-shrink: 0;
+        }
+    }
+}

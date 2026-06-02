@@ -4,22 +4,22 @@ overview: Build-time link graph and Starlight backlinks for all published vault 
 todos:
   - id: phase-1-link-graph-lib
     content: Create scripts/lib/link-graph.mjs (scan, extract, normalize, invert index) + tests/fixtures
-    status: pending
+    status: completed
   - id: phase-1-cli-prebuild
     content: Add build-link-graph.mjs, link-graph:build npm script, predev/prebuild hook, src/generated/ gitignore
-    status: pending
+    status: completed
   - id: phase-2-resolve-filter
     content: Title/alias resolution, publish filter, hub exclusions via loadLexiconConfig, no self-links in display lists
-    status: pending
+    status: completed
   - id: phase-3-page-backlinks
     content: PageBacklinks.astro + Starlight component override, doc variant for all pages
-    status: pending
+    status: completed
   - id: phase-4-lexicon-ux
     content: Lexicon variant (entryTag + hubs from site.config lexicon block, grouped by section) + backlinks-starlight.css
-    status: pending
+    status: completed
   - id: phase-5-readme
     content: Document link-graph:build, artefact, publish rules, UI variants, and lexicon block (not glossaire-ia as global convention) in engine README
-    status: pending
+    status: completed
 isProject: false
 ---
 
@@ -258,3 +258,35 @@ Documenter la feature pour les mainteneurs engine et les auteurs vault.
 | Divergence remark-wiki-link vs extracteur | Tests fixtures + même `pageResolver` que `config/markdown.mjs` |
 | `link-graph.json` absent en dev (premier clone) | `predev` regénère ; composant tolère fichier manquant (section absente) |
 | Performance future | plan 2 phase 6 (cache incrémental) |
+
+---
+
+## Rapport d'implémentation
+
+**Date** : 2026-06-02  
+**Statut** : livré (phases 1–5)
+
+### Modifications
+
+| Phase | Fichiers |
+|-------|----------|
+| 1 | [`scripts/lib/link-graph.mjs`](../../scripts/lib/link-graph.mjs), [`scripts/build-link-graph.mjs`](../../scripts/build-link-graph.mjs), [`scripts/lib/link-graph-data.mjs`](../../scripts/lib/link-graph-data.mjs), [`tests/link-graph.test.mjs`](../../tests/link-graph.test.mjs), [`tests/fixtures/link-graph-vault/`](../../tests/fixtures/link-graph-vault/), `.gitignore` → `src/generated/` |
+| 2 | Résolution alias/titre, filtre publish, `getLexiconDisplayExclusions` via [`config/lexicon.mjs`](../../config/lexicon.mjs) |
+| 3–4 | [`src/components/PageBacklinks.astro`](../../src/components/PageBacklinks.astro), [`src/components/PageSidebar.astro`](../../src/components/PageSidebar.astro), [`src/lib/backlinks-routing.mjs`](../../src/lib/backlinks-routing.mjs), [`src/styles/backlinks-starlight.css`](../../src/styles/backlinks-starlight.css) |
+| 5 | [`config/starlight/index.mjs`](../../config/starlight/index.mjs) (`PageSidebar` + CSS), [`README.md`](../../README.md), hooks [`package.json`](../../package.json) (`predev`/`prebuild` après lexicon) |
+
+### Correctif
+
+- `normalizeLinkTarget` : retirer l’ancre **avant** l’extension `.md` (ex. `/page-b.md#x` → `page-b`).
+
+### Validation
+
+- `npm test` : **68** tests, 0 échec.
+- Vault ZTH (`ia-on-prem-vault`) : `link-graph:build` → **31** cibles, **139** rétroliens → `src/generated/link-graph.json`.
+- `prebuild` : index lexique **26** entrées + graphe regénéré.
+- `npm run build` : **68** pages HTML (FR + EN), build OK.
+- Junction `src/content/docs` recréée vers le vault ZTH (le shell avait encore `FORCE_VAULT_PATH=1` + fixture minimal depuis un test précédent).
+
+### Suite
+
+Phases 6–7 (cache incrémental, intégrations optionnelles) : [plan 2](2026_06_01_14-00_main_link-graph-backlinks-phases-6-7.plan.md).

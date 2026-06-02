@@ -5,10 +5,11 @@
   "scripts": {
     "lexicon:index": "node scripts/generate-lexicon-index.mjs",
     "lexicon:voir-aussi": "node scripts/format-lexicon-voir-aussi.mjs",
-    "predev": "node scripts/ensure-vault.mjs && node scripts/run-lexicon-if-enabled.mjs",
+    "link-graph:build": "node scripts/build-link-graph.mjs",
+    "predev": "node scripts/ensure-vault.mjs && node scripts/run-lexicon-if-enabled.mjs && node scripts/build-link-graph.mjs",
     "dev": "astro dev",
     "start": "astro dev",
-    "prebuild": "node scripts/ensure-vault.mjs && node scripts/run-lexicon-if-enabled.mjs",
+    "prebuild": "node scripts/ensure-vault.mjs && node scripts/run-lexicon-if-enabled.mjs && node scripts/build-link-graph.mjs",
     "build": "astro build",
     "preview": "astro preview",
     "astro": "astro",

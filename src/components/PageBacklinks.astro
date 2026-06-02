@@ -1,0 +1,120 @@
+---
+import { loadLinkGraph } from '../../scripts/lib/link-graph-data.mjs';
+import {
+    filterBacklinksForDisplay,
+    getLexiconDisplayExclusions,
+} from '../../scripts/lib/link-graph.mjs';
+import { loadLexiconConfig, isLexiconEnabled } from '../../config/lexicon.mjs';
+import { resolveVaultGitRoot } from '../../config/vault.mjs';
+import { siteHrefFromVaultSlug, vaultSlugFromRouteEntry } from '../lib/backlinks-routing.mjs';
+
+const route = Astro.locals.starlightRoute;
+const vaultRoot = resolveVaultGitRoot();
+const currentSlug = vaultSlugFromRouteEntry(route.entry);
+const graph = loadLinkGraph();
+
+const exclusions = getLexiconDisplayExclusions(vaultRoot);
+const rawEntries = currentSlug ? (graph.backlinks[currentSlug] ?? []) : [];
+const entries = currentSlug
+    ? filterBacklinksForDisplay(rawEntries, currentSlug, {
+          excludeSourceSlugs: exclusions.excludeSourceSlugs,
+          excludeTargetSlugs: exclusions.excludeTargetSlugs,
+      })
+    : [];
+
+const lexicon = loadLexiconConfig(vaultRoot);
+const tags = route.entry.data.tags ?? [];
+const isLexiconPage =
+    isLexiconEnabled(lexicon) &&
+    Array.isArray(tags) &&
+    tags.includes(lexicon.entryTag);
+
+const heading = isLexiconPage ? 'Pages qui mentionnent ce terme' : 'Références entrantes';
+
+/** @type {Map<string, typeof entries>} */
+const grouped = new Map();
+if (isLexiconPage) {
+    for (const e of entries) {
+        const key = e.section || '';
+        if (!grouped.has(key)) grouped.set(key, []);
+        grouped.get(key)?.push(e);
+    }
+} else {
+    grouped.set('', entries);
+}
+
+const locale = route.entryMeta.locale ?? route.locale;
+const sortedGroups = [...grouped.entries()].sort(([a], [b]) =>
+    a.localeCompare(b, 'fr', { sensitivity: 'base' }),
+);
+---
+
+{
+    entries.length > 0 && (
+        <div class="page-backlinks">
+            <h2>{heading}</h2>
+            {isLexiconPage ? (
+                sortedGroups.map(([section, groupEntries]) => (
+                    <div class="page-backlinks__group">
+                        {section ? <h3 class="page-backlinks__section">{section}</h3> : null}
+                        <ul>
+                            {groupEntries.map((e) => (
+                                <li>
+                                    <a href={siteHrefFromVaultSlug(e.from, locale)}>{e.title}</a>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                ))
+            ) : (
+                <ul>
+                    {entries.map((e) => (
+                        <li>
+                            <a href={siteHrefFromVaultSlug(e.from, locale)}>{e.title}</a>
+                        </li>
+                    ))}
+                </ul>
+            )}
+        </div>
+    )
+}
+
+<style>
+    @layer starlight.core {
+        .page-backlinks {
+            margin-top: 1.5rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--sl-color-gray-5);
+        }
+        .page-backlinks h2 {
+            color: var(--sl-color-white);
+            font-size: var(--sl-text-h5);
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+        .page-backlinks__section {
+            color: var(--sl-color-gray-2);
+            font-size: var(--sl-text-xs);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            margin: 0.75rem 0 0.35rem;
+        }
+        .page-backlinks ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .page-backlinks li + li {
+            margin-top: 0.35rem;
+        }
+        .page-backlinks a {
+            font-size: var(--sl-text-xs);
+            color: var(--sl-color-gray-3);
+            text-decoration: none;
+        }
+        .page-backlinks a:hover {
+            color: var(--sl-color-white);
+        }
+    }
+</style>

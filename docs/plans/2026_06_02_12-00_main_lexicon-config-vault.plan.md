@@ -201,3 +201,32 @@ Vérifier que `npm test` et [`npm run test:build`](../../tests/smoke-build.mjs) 
 - Vault hypothétique avec `directory: "glossary"` : index écrit dans `glossary/{indexPage}` sans code engine spécifique ZTH.
 - README engine ne cite plus `glossaire-ia` comme convention globale.
 - Aucune constante `GLOSSARY_BASENAME` / `LEXICON_DIR` exportée comme API publique du moteur (remplacées par config).
+
+---
+
+## Rapport d'implémentation
+
+**Date** : 2026-06-02  
+**Statut** : livré
+
+### Modifications
+
+| Zone | Fichiers |
+|------|----------|
+| Config | [`config/lexicon.mjs`](../../config/lexicon.mjs) (nouveau) |
+| Scripts | [`scripts/run-lexicon-if-enabled.mjs`](../../scripts/run-lexicon-if-enabled.mjs), refactor [`scripts/lib/lexicon-index.mjs`](../../scripts/lib/lexicon-index.mjs), [`scripts/generate-lexicon-index.mjs`](../../scripts/generate-lexicon-index.mjs), [`scripts/format-lexicon-voir-aussi.mjs`](../../scripts/format-lexicon-voir-aussi.mjs) |
+| Vault ZTH | [`ia-on-prem-vault/site.config.json`](https://github.com/DamienBecherini/ia-on-prem-vault) — bloc `lexicon` |
+| Docs | [`README.md`](../../README.md) (section Optional lexicon), README vault ZTH |
+| Tests | [`tests/lexicon-config.test.mjs`](../../tests/lexicon-config.test.mjs), [`tests/lexicon-index.test.mjs`](../../tests/lexicon-index.test.mjs) mis à jour |
+| Hooks | [`package.json`](../../package.json) — `predev` / `prebuild` → `run-lexicon-if-enabled` |
+
+### Validation
+
+- `npm test` : **63** tests, 0 échec.
+- `npm run test:build` : smoke build OK (minimal-vault sans lexique).
+- `npm run lexicon:index` sur vault ZTH : **26** entrées → `00-lexique/index-lexique.md`.
+- `run-lexicon-if-enabled` sur minimal-vault : skip avec message info, exit 0.
+
+### Suite
+
+Plan rétroliens phases 1–5 : [`2026_06_01_14-00_main_link-graph-backlinks-phases-1-5.plan.md`](2026_06_01_14-00_main_link-graph-backlinks-phases-1-5.plan.md) — **livré le 2026-06-02** (rapport en fin de ce plan ; consomme `loadLexiconConfig` / `getLexiconExcludeSlugs`).

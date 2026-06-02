@@ -13,9 +13,11 @@ export const starlightIntegration = starlight({
         './src/styles/katex-starlight.css',
         './src/styles/footnotes-starlight.css',
         './src/styles/external-links-starlight.css',
+        './src/styles/backlinks-starlight.css',
     ],
     components: {
         Head: './src/components/Head.astro',
+        PageSidebar: './src/components/PageSidebar.astro',
     },
     defaultLocale: site.defaultLocale,
     locales: site.locales,

@@ -1,0 +1,6 @@
+{
+  "title": "Link Graph Fixture",
+  "defaultLocale": "root",
+  "locales": { "root": { "label": "Test", "lang": "en" } },
+  "sidebar": [{ "label": "Home", "items": [{ "label": "A", "link": "/page-a/" }] }]
+}
