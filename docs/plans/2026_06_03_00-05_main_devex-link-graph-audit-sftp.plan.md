@@ -3,6 +3,8 @@
 **Branch:** `main`  
 **Date:** 2026-06-03 00:05
 
+**Follows:** [Gemini review fixes](2026_06_02_23-41_main_gemini-critique-fixes.plan.md).
+
 ## Goal
 
 Address three follow-up critiques: regenerate backlink graph during dev HMR, checkpoint SFTP upload manifest locally during long transfers, and make `audit:links` CI-safe with allowlists for intentional placeholders.

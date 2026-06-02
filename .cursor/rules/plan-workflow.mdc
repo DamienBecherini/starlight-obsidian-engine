@@ -14,6 +14,7 @@ When the user asks to create a plan:
 - Build `<branch-slug>` from the current git branch by replacing `/` with `__`.
 - Normalize `<plan-title>` to lowercase ASCII kebab-case.
 - Include the goal, scope, files to create/modify, execution tasks, and validation steps.
+- Write plan content in English.
 - For engine work, prefer validation with `npm test` and, when relevant, `npm run build` or `npm run test:build`.
 - If the user asks to execute the plan, append a final implementation/build report to the same plan file with changed files, validation evidence, and limitations.
 - Do not create commits unless the user explicitly asks.

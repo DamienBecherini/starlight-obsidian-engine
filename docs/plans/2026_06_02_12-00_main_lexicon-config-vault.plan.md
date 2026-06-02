@@ -1,37 +1,37 @@
 ---
 name: lexicon-config-vault
-overview: Découpler le lexique du engine via un bloc lexicon dans site.config.json (multi-vault), scripts opt-in, documentation engine générique.
+overview: Decouple the lexicon from the engine via a lexicon block in site.config.json (multi-vault), opt-in scripts, generic engine documentation.
 todos:
   - id: lexicon-config-module
-    content: Créer config/lexicon.mjs (load, validation, resolve paths) + tests/lexicon-config.test.mjs
+    content: Create config/lexicon.mjs (load, validation, resolve paths) + tests/lexicon-config.test.mjs
     status: pending
   - id: refactor-lexicon-index
-    content: Refactor scripts/lib/lexicon-index.mjs pour accepter LexiconConfig ; mettre à jour tests/lexicon-index.test.mjs
+    content: Refactor scripts/lib/lexicon-index.mjs to accept LexiconConfig; update tests/lexicon-index.test.mjs
     status: pending
   - id: cli-gate-hooks
-    content: Ajouter run-lexicon-if-enabled.mjs ; adapter generate/format scripts ; modifier predev/prebuild dans package.json
+    content: Add run-lexicon-if-enabled.mjs; adapt generate/format scripts; modify predev/prebuild in package.json
     status: pending
   - id: vault-zth-migration
-    content: Ajouter bloc lexicon dans ia-on-prem-vault site.config.json ; regénérer index-lexique.md
+    content: Add lexicon block in ia-on-prem-vault site.config.json; regenerate index-lexique.md
     status: pending
   - id: docs-readme
-    content: Réécrire section lexique README engine (générique) + section lexique README vault ZTH
+    content: Rewrite engine lexicon README section (generic) + ZTH vault lexicon README section
     status: pending
   - id: verify-ci
-    content: Exécuter npm test, npm run test:build ; valider dev avec minimal-vault et vault ZTH
+    content: Run npm test, npm run test:build; validate dev with minimal-vault and ZTH vault
     status: pending
 isProject: false
 ---
 
-# Lexique configurable multi-vault
+# Configurable multi-vault lexicon
 
-**Prérequis pour** : [Rétroliens phases 1–5](2026_06_01_14-00_main_link-graph-backlinks-phases-1-5.plan.md) — livrer ce plan **avant** les phases 2 et 4 du plan rétroliens (exclusions hubs et `entryTag`).
+**Prerequisite for**: [Backlinks phases 1–5](2026_06_01_14-00_main_link-graph-backlinks-phases-1-5.plan.md) — deliver this plan **before** phases 2 and 4 of the backlinks plan (hub exclusions and `entryTag`).
 
-**Consommé par** : plan rétroliens (phases 2, 4, hooks prebuild).
+**Consumed by**: backlinks plan (phases 2, 4, prebuild hooks).
 
-## Objectif
+## Objective
 
-L'engine reste **générique** : la logique (scan, index, format « Voir aussi ») vit dans [starlight-obsidian-engine](https://github.com/DamienBecherini/starlight-obsidian-engine). Chaque vault déclare **si** et **comment** il utilise le lexique via `site.config.json` (ex. [`ia-on-prem-vault`](https://github.com/DamienBecherini/ia-on-prem-vault)). Le README engine documente le mécanisme ; le vault ZTH documente l'instance concrète (`00-lexique`, `glossaire-ia`).
+The engine stays **generic**: logic (scan, index, “See also” formatting) lives in [starlight-obsidian-engine](https://github.com/DamienBecherini/starlight-obsidian-engine). Each vault declares **whether** and **how** it uses the lexicon via `site.config.json` (e.g. [`ia-on-prem-vault`](https://github.com/DamienBecherini/ia-on-prem-vault)). The engine README documents the mechanism; the ZTH vault documents the concrete instance (`00-lexique`, `glossaire-ia`).
 
 ```mermaid
 flowchart TB
@@ -50,44 +50,44 @@ flowchart TB
   gen --> indexMd["indexPage on disk"]
 ```
 
-## Ordre d'exécution globale
+## Global execution order
 
-1. Plan lexicon (ce document) — `config/lexicon.mjs` + gate predev
-2. Plan rétroliens phase 1 — link-graph lib (peut chevaucher la fin du plan lexicon)
-3. Plan rétroliens phases 2–5 — utilise `loadLexiconConfig()`
+1. Lexicon plan (this document) — `config/lexicon.mjs` + predev gate
+2. Backlinks plan phase 1 — link-graph lib (may overlap the end of the lexicon plan)
+3. Backlinks plan phases 2–5 — uses `loadLexiconConfig()`
 
-## État actuel (à corriger)
+## Current state (to fix)
 
-- Constantes figées dans [`scripts/lib/lexicon-index.mjs`](../../scripts/lib/lexicon-index.mjs) : `00-lexique`, `glossaire-ia.md`, `index-lexique.md`, tag `lexique`, textes FR en dur.
-- [`package.json`](../../package.json) : `predev` / `prebuild` appellent toujours `generate-lexicon-index.mjs` → **échec** si pas de dossier lexique ([`collectLexiconEntries`](../../scripts/lib/lexicon-index.mjs) throw).
-- [`config/site.mjs`](../../config/site.mjs) : ne lit pas de clé `lexicon` (seulement title, url, locales, sidebar, social).
-- README engine : section couplée à `glossaire-ia` / `index-lexique` (lignes 87–93).
+- Hardcoded constants in [`scripts/lib/lexicon-index.mjs`](../../scripts/lib/lexicon-index.mjs): `00-lexique`, `glossaire-ia.md`, `index-lexique.md`, tag `lexique`, hardcoded FR strings.
+- [`package.json`](../../package.json): `predev` / `prebuild` always call `generate-lexicon-index.mjs` → **failure** if there is no lexicon directory ([`collectLexiconEntries`](../../scripts/lib/lexicon-index.mjs) throws).
+- [`config/site.mjs`](../../config/site.mjs): does not read a `lexicon` key (only title, url, locales, sidebar, social).
+- Engine README: section coupled to `glossaire-ia` / `index-lexique` (lines 87–93).
 
-## Contrat `site.config.json`
+## `site.config.json` contract
 
-Ajouter un bloc optionnel `lexicon` (documenté dans le README engine) :
+Add an optional `lexicon` block (documented in the engine README):
 
-| Champ | Rôle | Défaut si `enabled: true` |
+| Field | Role | Default when `enabled: true` |
 |-------|------|---------------------------|
-| `enabled` | Active scan + génération | `false` si bloc absent |
-| `directory` | Dossier vault des fiches | **requis** quand enabled |
-| `entryTag` | Tag frontmatter des entrées | `lexique` |
-| `hubPage` | Fichier hub curaté (exclu du scan) | **requis** quand enabled |
-| `indexPage` | Fichier index généré | **requis** quand enabled |
-| `sortLocale` | Tri des titres (`localeCompare`) | `fr` |
-| `index.title` | Frontmatter titre de l'index | requis |
-| `index.description` | Frontmatter description | requis |
-| `index.intro` | Paragraphe sous le frontmatter (markdown libre) | requis |
-| `index.hubLink` | `{ "path": "glossaire-ia", "label": "Glossaire IA" }` — chemin wiki **sans** extension, relatif au vault (l'engine préfixe `directory/` pour le lien `[[...]]` si besoin) | optionnel |
+| `enabled` | Enables scan + generation | `false` if block absent |
+| `directory` | Vault folder for entries | **required** when enabled |
+| `entryTag` | Frontmatter tag for entries | `lexique` |
+| `hubPage` | Curated hub file (excluded from scan) | **required** when enabled |
+| `indexPage` | Generated index file | **required** when enabled |
+| `sortLocale` | Title sort (`localeCompare`) | `fr` |
+| `index.title` | Index frontmatter title | required |
+| `index.description` | Index frontmatter description | required |
+| `index.intro` | Paragraph below frontmatter (free markdown) | required |
+| `index.hubLink` | `{ "path": "glossaire-ia", "label": "Glossaire IA" }` — wiki path **without** extension, relative to vault (engine prefixes `directory/` for `[[...]]` link if needed) | optional |
 
-**Règles de comportement**
+**Behavior rules**
 
-- Bloc absent ou `enabled: false` → skip (exit 0, log info) pour le hook build/dev.
-- `enabled: true` + dossier manquant → skip avec warning (ne pas bloquer `npm run dev` sur un vault sans lexique physique).
-- `npm run lexicon:index` (explicite) → erreur claire si config invalide ou dossier absent (comportement strict).
-- Pas de fallback silencieux vers les noms ZTH (`glossaire-ia`) dans l'engine : migration explicite dans le vault ZTH.
+- Block absent or `enabled: false` → skip (exit 0, info log) for build/dev hook.
+- `enabled: true` + missing directory → skip with warning (do not block `npm run dev` on a vault without a physical lexicon).
+- `npm run lexicon:index` (explicit) → clear error if config invalid or directory missing (strict behavior).
+- No silent fallback to ZTH names (`glossaire-ia`) in the engine: explicit migration in the ZTH vault.
 
-**Exemple ZTH** (à ajouter dans `site.config.json` du vault [`ia-on-prem-vault`](https://github.com/DamienBecherini/ia-on-prem-vault)) — équivalent des constantes actuelles :
+**ZTH example** (to add in [`ia-on-prem-vault`](https://github.com/DamienBecherini/ia-on-prem-vault) `site.config.json`) — equivalent to current constants:
 
 ```jsonc
 "lexicon": {
@@ -106,127 +106,127 @@ Ajouter un bloc optionnel `lexicon` (documenté dans le README engine) :
 }
 ```
 
-La sidebar « Glossaire IA » / « Index du lexique » **reste inchangée** dans `site.config.json` (déjà vault-owned) — pas de génération automatique de sidebar par l'engine.
+The “Glossaire IA” / “Index du lexique” sidebar **stays unchanged** in `site.config.json` (already vault-owned) — no automatic sidebar generation by the engine.
 
-## Implémentation engine
+## Engine implementation
 
-### 1. Module de config — `config/lexicon.mjs` (nouveau)
+### 1. Config module — `config/lexicon.mjs` (new)
 
-- `loadLexiconConfig(vaultRoot?)` : lit `site.config.json` via `resolveVaultPath()` (même pattern que [`config/site.mjs`](../../config/site.mjs)).
-- `isLexiconEnabled(config)` / `resolveLexiconPaths(config, vaultRoot)` : chemins absolus directory, hub, index.
-- Validation minimale : si `enabled`, champs requis présents ; messages d'erreur actionnables.
-- Exporter un typedef JSDoc `LexiconConfig` pour les scripts.
+- `loadLexiconConfig(vaultRoot?)`: reads `site.config.json` via `resolveVaultPath()` (same pattern as [`config/site.mjs`](../../config/site.mjs)).
+- `isLexiconEnabled(config)` / `resolveLexiconPaths(config, vaultRoot)`: absolute paths for directory, hub, index.
+- Minimal validation: if `enabled`, required fields present; actionable error messages.
+- Export a JSDoc typedef `LexiconConfig` for scripts.
 
-Ne pas étendre le retour de `loadSiteConfig()` pour Starlight (évite de mélanger config Astro et tooling CLI).
+Do not extend `loadSiteConfig()` return for Starlight (avoids mixing Astro config and CLI tooling).
 
 ### 2. Refactor [`scripts/lib/lexicon-index.mjs`](../../scripts/lib/lexicon-index.mjs)
 
-- Remplacer les exports de constantes globales par un objet **`LexiconConfig`** passé en argument :
+- Replace global constant exports with a **`LexiconConfig`** object passed as argument:
   - `collectLexiconEntries(vaultRoot, config)`
-  - `renderIndexMarkdown(entries, config)` — liens `/{directory}/{slug}/`, intro/titre/description depuis `config.index`
+  - `renderIndexMarkdown(entries, config)` — links `/{directory}/{slug}/`, intro/title/description from `config.index`
   - `buildLexiconIndex` / `writeLexiconIndex(vaultRoot, config)`
-- Conserver `parseLexiconFrontmatter`, `escapeTableCell`, `readLexiconEntry` (génériques).
-- Supprimer les références hardcodées à `00-lexique` / `glossaire-ia` dans le markdown généré.
+- Keep `parseLexiconFrontmatter`, `escapeTableCell`, `readLexiconEntry` (generic).
+- Remove hardcoded references to `00-lexique` / `glossaire-ia` in generated markdown.
 
-### 3. Scripts CLI
+### 3. CLI scripts
 
-| Fichier | Changement |
+| File | Change |
 |---------|------------|
-| [`scripts/generate-lexicon-index.mjs`](../../scripts/generate-lexicon-index.mjs) | Charge config ; si disabled → message + exit 0 ; si enabled → `writeLexiconIndex` |
-| [`scripts/format-lexicon-voir-aussi.mjs`](../../scripts/format-lexicon-voir-aussi.mjs) | Même gate ; répertoire / pages skip → depuis config |
-| **`scripts/run-lexicon-if-enabled.mjs`** (nouveau) | Appelé par `predev` / `prebuild` : enabled + dir OK → spawn index ; sinon log et exit 0 |
+| [`scripts/generate-lexicon-index.mjs`](../../scripts/generate-lexicon-index.mjs) | Load config; if disabled → message + exit 0; if enabled → `writeLexiconIndex` |
+| [`scripts/format-lexicon-voir-aussi.mjs`](../../scripts/format-lexicon-voir-aussi.mjs) | Same gate; directory / skip pages → from config |
+| **`scripts/run-lexicon-if-enabled.mjs`** (new) | Called by `predev` / `prebuild`: enabled + dir OK → spawn index; otherwise log and exit 0 |
 
-[`package.json`](../../package.json) :
+[`package.json`](../../package.json):
 
 ```json
 "predev": "node scripts/ensure-vault.mjs && node scripts/run-lexicon-if-enabled.mjs",
 "prebuild": "node scripts/ensure-vault.mjs && node scripts/run-lexicon-if-enabled.mjs"
 ```
 
-[`scripts/lib/wiki-link-label.mjs`](../../scripts/lib/wiki-link-label.mjs) : inchangé (parcours tout le vault ; `readLexiconEntry` reste valide).
+[`scripts/lib/wiki-link-label.mjs`](../../scripts/lib/wiki-link-label.mjs): unchanged (walks entire vault; `readLexiconEntry` remains valid).
 
 ### 4. Tests — [`tests/lexicon-index.test.mjs`](../../tests/lexicon-index.test.mjs)
 
-- Ajouter `tests/lexicon-config.test.mjs` : disabled par défaut, validation enabled, chemins résolus.
-- Adapter les tests existants : passer un objet config mock (directory `00-lexique` ou `glossary` custom).
-- [`tests/fixtures/minimal-vault/site.config.json`](../../tests/fixtures/minimal-vault/site.config.json) : pas de bloc `lexicon` (ou `"enabled": false`) — garantit que `npm run dev` ne casse pas.
-- Optionnel : mini fixture `tests/fixtures/lexicon-vault/` (2 entrées + config) pour un test d'intégration `writeLexiconIndex` avec `directory: "glossary"`.
+- Add `tests/lexicon-config.test.mjs`: disabled by default, enabled validation, resolved paths.
+- Adapt existing tests: pass a mock config object (directory `00-lexique` or custom `glossary`).
+- [`tests/fixtures/minimal-vault/site.config.json`](../../tests/fixtures/minimal-vault/site.config.json): no `lexicon` block (or `"enabled": false`) — ensures `npm run dev` does not break.
+- Optional: mini fixture `tests/fixtures/lexicon-vault/` (2 entries + config) for integration test `writeLexiconIndex` with `directory: "glossary"`.
 
-Vérifier que `npm test` et [`npm run test:build`](../../tests/smoke-build.mjs) passent (smoke build n'utilise pas `prebuild` — déjà OK).
+Verify `npm test` and [`npm run test:build`](../../tests/smoke-build.mjs) pass (smoke build does not use `prebuild` — already OK).
 
 ### 5. Documentation
 
 **Engine — [`README.md`](../../README.md)**
 
-- Remplacer la section « Lexicon index (`index-lexique.md`) » par **« Optional lexicon (vault `site.config.json`) »** :
-  - schéma du bloc `lexicon` ;
-  - convention entrée (`title`, `description`, `entryTag`) ;
-  - hub vs index généré ;
-  - commandes `lexicon:index` / `lexicon:voir-aussi` ;
-  - exemple générique (`glossary/`, pas `glossaire-ia`).
-- Table des scripts : préciser que `predev`/`prebuild` n'exécutent l'index que si `lexicon.enabled`.
+- Replace “Lexicon index (`index-lexique.md`)” section with **“Optional lexicon (vault `site.config.json`)”**:
+  - `lexicon` block schema;
+  - entry convention (`title`, `description`, `entryTag`);
+  - hub vs generated index;
+  - `lexicon:index` / `lexicon:voir-aussi` commands;
+  - generic example (`glossary/`, not `glossaire-ia`).
+- Scripts table: clarify that `predev`/`prebuild` run index only if `lexicon.enabled`.
 
-**Vault ZTH — README du repo [`ia-on-prem-vault`](https://github.com/DamienBecherini/ia-on-prem-vault)**
+**ZTH vault — README of [`ia-on-prem-vault`](https://github.com/DamienBecherini/ia-on-prem-vault) repo**
 
-- Ajouter `00-lexique/` dans « Vault layout ».
-- Courte section « Lexicon » : hub `glossaire-ia.md`, index généré, template `_templates/_Terme Lexique.md`, commande `npm run lexicon:index` depuis l'engine, politique de commit de `index-lexique.md` (conserver l'actuelle : committer avec le vault quand les fiches changent).
+- Add `00-lexique/` to “Vault layout”.
+- Short “Lexicon” section: hub `glossaire-ia.md`, generated index, template `_templates/_Terme Lexique.md`, `npm run lexicon:index` command from engine, `index-lexique.md` commit policy (keep current: commit with vault when entries change).
 
-**Optionnel vault** : `npm run lexicon:index` via `scripts/delegate.mjs` du vault — hors scope minimal ; mentionner dans la doc vault sans l'implémenter si non demandé.
+**Optional vault**: `npm run lexicon:index` via vault `scripts/delegate.mjs` — out of minimal scope; mention in vault doc without implementing unless requested.
 
-### 6. Vault ZTH — migration contenu
+### 6. ZTH vault — content migration
 
-- Ajouter le bloc `lexicon` dans `site.config.json` du vault ZTH.
-- Lancer une fois `npm run lexicon:index` (engine) pour régénérer `00-lexique/index-lexique.md` avec la nouvelle intro (doit rester équivalente si config correcte).
-- Aucune modification obligatoire des fiches lexique ni de `glossaire-ia.md` (chemins wiki inchangés).
+- Add `lexicon` block in ZTH vault `site.config.json`.
+- Run once `npm run lexicon:index` (engine) to regenerate `00-lexique/index-lexique.md` with new intro (should stay equivalent if config correct).
+- No mandatory changes to lexicon entries or `glossaire-ia.md` (wiki paths unchanged).
 
-### 7. Hors scope (noter seulement)
+### 7. Out of scope (note only)
 
-- Doublons git `00-lexique/foo.md` vs `00-lexique\foo.md` sur Windows : nettoyage manuel séparé dans le vault.
-- Publication du plan dans `AIContextCraft/docs/plans/` : non applicable (workspace engine/vault).
+- Git duplicates `00-lexique/foo.md` vs `00-lexique\foo.md` on Windows: manual cleanup separately in vault.
+- Plan publication in `AIContextCraft/docs/plans/`: not applicable (engine/vault workspace).
 
-## Ordre d'exécution recommandé (ce plan)
+## Recommended execution order (this plan)
 
-1. `config/lexicon.mjs` + tests config
-2. Refactor `lexicon-index.mjs` + mise à jour tests lexicon
+1. `config/lexicon.mjs` + config tests
+2. Refactor `lexicon-index.mjs` + update lexicon tests
 3. `run-lexicon-if-enabled.mjs` + `package.json` hooks
-4. Adapter `generate-lexicon-index.mjs` / `format-lexicon-voir-aussi.mjs`
-5. `site.config.json` ZTH + regen index
-6. README engine + README vault
-7. `npm test` + `npm run test:build` + smoke manuel `npm run dev` avec vault ZTH et minimal fixture
+4. Adapt `generate-lexicon-index.mjs` / `format-lexicon-voir-aussi.mjs`
+5. ZTH `site.config.json` + regen index
+6. Engine README + vault README
+7. `npm test` + `npm run test:build` + manual smoke `npm run dev` with ZTH vault and minimal fixture
 
-## Critères d'acceptation
+## Acceptance criteria
 
-- Vault **sans** `lexicon.enabled` : `npm run dev` / `npm run build` OK, pas d'écriture lexique.
-- Vault ZTH avec bloc `lexicon` : index régénéré, liens `/00-lexique/.../` identiques au comportement actuel.
-- Vault hypothétique avec `directory: "glossary"` : index écrit dans `glossary/{indexPage}` sans code engine spécifique ZTH.
-- README engine ne cite plus `glossaire-ia` comme convention globale.
-- Aucune constante `GLOSSARY_BASENAME` / `LEXICON_DIR` exportée comme API publique du moteur (remplacées par config).
+- Vault **without** `lexicon.enabled`: `npm run dev` / `npm run build` OK, no lexicon writes.
+- ZTH vault with `lexicon` block: index regenerated, links `/00-lexique/.../` identical to current behavior.
+- Hypothetical vault with `directory: "glossary"`: index written to `glossary/{indexPage}` without ZTH-specific engine code.
+- Engine README no longer cites `glossaire-ia` as a global convention.
+- No `GLOSSARY_BASENAME` / `LEXICON_DIR` constants exported as public engine API (replaced by config).
 
 ---
 
-## Rapport d'implémentation
+## Implementation report
 
-**Date** : 2026-06-02  
-**Statut** : livré
+**Date**: 2026-06-02  
+**Status**: delivered
 
-### Modifications
+### Changes
 
-| Zone | Fichiers |
+| Area | Files |
 |------|----------|
-| Config | [`config/lexicon.mjs`](../../config/lexicon.mjs) (nouveau) |
+| Config | [`config/lexicon.mjs`](../../config/lexicon.mjs) (new) |
 | Scripts | [`scripts/run-lexicon-if-enabled.mjs`](../../scripts/run-lexicon-if-enabled.mjs), refactor [`scripts/lib/lexicon-index.mjs`](../../scripts/lib/lexicon-index.mjs), [`scripts/generate-lexicon-index.mjs`](../../scripts/generate-lexicon-index.mjs), [`scripts/format-lexicon-voir-aussi.mjs`](../../scripts/format-lexicon-voir-aussi.mjs) |
-| Vault ZTH | [`ia-on-prem-vault/site.config.json`](https://github.com/DamienBecherini/ia-on-prem-vault) — bloc `lexicon` |
-| Docs | [`README.md`](../../README.md) (section Optional lexicon), README vault ZTH |
-| Tests | [`tests/lexicon-config.test.mjs`](../../tests/lexicon-config.test.mjs), [`tests/lexicon-index.test.mjs`](../../tests/lexicon-index.test.mjs) mis à jour |
+| ZTH vault | [`ia-on-prem-vault/site.config.json`](https://github.com/DamienBecherini/ia-on-prem-vault) — `lexicon` block |
+| Docs | [`README.md`](../../README.md) (Optional lexicon section), ZTH vault README |
+| Tests | [`tests/lexicon-config.test.mjs`](../../tests/lexicon-config.test.mjs), updated [`tests/lexicon-index.test.mjs`](../../tests/lexicon-index.test.mjs) |
 | Hooks | [`package.json`](../../package.json) — `predev` / `prebuild` → `run-lexicon-if-enabled` |
 
 ### Validation
 
-- `npm test` : **63** tests, 0 échec.
-- `npm run test:build` : smoke build OK (minimal-vault sans lexique).
-- `npm run lexicon:index` sur vault ZTH : **26** entrées → `00-lexique/index-lexique.md`.
-- `run-lexicon-if-enabled` sur minimal-vault : skip avec message info, exit 0.
+- `npm test`: **63** tests, 0 failures.
+- `npm run test:build`: smoke build OK (minimal-vault without lexicon).
+- `npm run lexicon:index` on ZTH vault: **26** entries → `00-lexique/index-lexique.md`.
+- `run-lexicon-if-enabled` on minimal-vault: skip with info message, exit 0.
 
-### Suite
+### Next steps
 
-Plan rétroliens phases 1–5 : [`2026_06_01_14-00_main_link-graph-backlinks-phases-1-5.plan.md`](2026_06_01_14-00_main_link-graph-backlinks-phases-1-5.plan.md) — **livré le 2026-06-02** (rapport en fin de ce plan ; consomme `loadLexiconConfig` / `getLexiconExcludeSlugs`).
+Backlinks plan phases 1–5: [`2026_06_01_14-00_main_link-graph-backlinks-phases-1-5.plan.md`](2026_06_01_14-00_main_link-graph-backlinks-phases-1-5.plan.md) — **delivered 2026-06-02** (report at end of that plan; consumes `loadLexiconConfig` / `getLexiconExcludeSlugs`).

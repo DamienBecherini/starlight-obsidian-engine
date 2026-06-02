@@ -1,4 +1,4 @@
-# Plan — Correctifs suite critique Gemini (deploy, link graph, Mermaid, audit)
+# Plan — Gemini review fixes (deploy, link graph, Mermaid, audit)
 
 **Branch:** `main`  
 **Date:** 2026-06-02 23:41
@@ -70,3 +70,5 @@ Address validated points from the Gemini architecture review: remote deploy mani
 - Remote manifest lives at `{DEPLOY_REMOTE_PATH}/.deploy-manifest.json` (dotfile, not part of `dist/` mirror).
 - SFTP concurrency not yet applied to FTPS incremental uploads (session limits unchanged).
 - `audit:links` reports unresolved targets but does not auto-write `lexicon-backlog.md` yet.
+
+**Follow-up:** [DevEx link graph HMR, SFTP checkpoints, smart audit](2026_06_03_00-05_main_devex-link-graph-audit-sftp.plan.md) — delivered 2026-06-03.

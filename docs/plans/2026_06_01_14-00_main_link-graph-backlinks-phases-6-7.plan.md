@@ -23,38 +23,38 @@ todos:
 isProject: false
 ---
 
-# Rétroliens site-wide — phases 6 à 7 (échelle et optionnel)
+# Site-wide backlinks — phases 6 to 7 (scale and optional)
 
-**Prérequis** :
+**Prerequisites**:
 
-- [plan 1 — phases 1 à 5](2026_06_01_14-00_main_link-graph-backlinks-phases-1-5.plan.md) livré et validé en production.
-- [Plan lexicon](2026_06_02_12-00_main_lexicon-config-vault.plan.md) livré (recommandé avant plan 1 si vault multi-lexique).
+- [plan 1 — phases 1 to 5](2026_06_01_14-00_main_link-graph-backlinks-phases-1-5.plan.md) delivered and validated in production.
+- [Lexicon plan](2026_06_02_12-00_main_lexicon-config-vault.plan.md) delivered (recommended before plan 1 if multi-lexicon vault).
 
-Ce plan couvre les optimisations quand le vault grossit (×10–×20) et des intégrations **non requises** pour la feature principale.
-
----
-
-## Contexte (rappel)
-
-Les phases 1–5 ont introduit :
-
-- [`scripts/lib/link-graph.mjs`](../../scripts/lib/link-graph.mjs) — scan complet des `.md` publiés, index inversé ;
-- [`src/generated/link-graph.json`](../../src/generated/link-graph.json) — artefact consommé par [`PageBacklinks.astro`](../../src/components/PageBacklinks.astro) ;
-- filtre publish identique au site ([`config/gitignore.mjs`](../../config/gitignore.mjs)).
-
-À ~30 pages aujourd'hui, un scan complet est négligeable. Ce plan s'active quand le **prébuild devient perceptible** ou que le corpus dépasse ~500 pages.
+This plan covers optimizations as the vault grows (×10–×20) and **optional** integrations **not required** for the main feature.
 
 ---
 
-## Phase 6 — Cache incrémental
+## Context (recap)
 
-### Objectif
+Phases 1–5 introduced:
 
-Éviter de reparser l'intégralité du vault à chaque `npm run dev` ou `npm run build` quand seuls quelques fichiers ont changé.
+- [`scripts/lib/link-graph.mjs`](../../scripts/lib/link-graph.mjs) — full scan of published `.md`, inverted index;
+- [`src/generated/link-graph.json`](../../src/generated/link-graph.json) — artefact consumed by [`PageBacklinks.astro`](../../src/components/PageBacklinks.astro);
+- publish filter identical to the site ([`config/gitignore.mjs`](../../config/gitignore.mjs)).
 
-### Tâches
+At ~30 pages today, a full scan is negligible. This plan applies when **prebuild becomes noticeable** or the corpus exceeds ~500 pages.
 
-1. **État de cache** — fichier [`.cache/link-graph-state.json`](../../.cache/link-graph-state.json) (gitignoré) :
+---
+
+## Phase 6 — Incremental cache
+
+### Objective
+
+Avoid reparsing the entire vault on every `npm run dev` or `npm run build` when only a few files changed.
+
+### Tasks
+
+1. **Cache state** — file [`.cache/link-graph-state.json`](../../.cache/link-graph-state.json) (gitignored):
    ```json
    {
      "version": 1,
@@ -66,111 +66,111 @@ Les phases 1–5 ont introduit :
    }
    ```
 
-   (exemple vault ZTH)
+   (ZTH vault example)
 
-   - Au premier run (cache absent) : scan complet, écriture cache + JSON public.
-   - Runs suivants : comparer mtime/hash par fichier publié ; reparser **uniquement** les fichiers modifiés, ajoutés ou supprimés.
-2. **Fusion index** :
-   - fichier **supprimé** ou **devenu non publié** : retirer ses arêtes sortantes et mettre à jour les listes `backlinks` des cibles ;
-   - fichier **modifié** : recalculer ses arêtes sortantes, diff avec l'ancien état, patcher l'index inversé ;
-   - fichier **nouveau** : ajouter arêtes normalement.
-3. **CLI** :
-   - `link-graph:build` — incrémental par défaut si cache présent ;
-   - `link-graph:build --full` — force scan complet (CI propre, debug).
-4. **Métriques** :
-   - log durée totale et nombre de fichiers reparsés ;
-   - documenter seuil recommandé dans README (ex. activer `--full` en CI si cache non restauré).
-5. **Tests** :
-   - fixture minimal-vault : build complet → modifier un seul `.md` → rebuild incrémental → backlinks mis à jour sans rescanner les autres.
+   - First run (cache absent): full scan, write cache + public JSON.
+   - Subsequent runs: compare mtime/hash per published file; reparse **only** modified, added, or deleted files.
+2. **Index merge**:
+   - **deleted** file or **became unpublished**: remove its outgoing edges and update `backlinks` lists for targets;
+   - **modified** file: recalculate outgoing edges, diff with previous state, patch inverted index;
+   - **new** file: add edges normally.
+3. **CLI**:
+   - `link-graph:build` — incremental by default if cache present;
+   - `link-graph:build --full` — force full scan (clean CI, debug).
+4. **Metrics**:
+   - log total duration and number of files reparsed;
+   - document recommended threshold in README (e.g. use `--full` in CI if cache not restored).
+5. **Tests**:
+   - minimal-vault fixture: full build → modify a single `.md` → incremental rebuild → backlinks updated without rescanning others.
 
-### Déclencheur recommandé
+### Recommended trigger
 
-| Taille vault | Action |
+| Vault size | Action |
 |--------------|--------|
-| < ~500 pages | scan complet acceptable ; phase 6 optionnelle |
-| ~500–2000 pages | implémenter cache incrémental |
-| > ~2000 pages | cache + évaluer phase 7 parallélisation |
+| < ~500 pages | full scan acceptable; phase 6 optional |
+| ~500–2000 pages | implement incremental cache |
+| > ~2000 pages | cache + evaluate phase 7 parallelization |
 
 ### Validation
 
-- `predev` après édition d'une note : rebuild < 200 ms sur machine dev typique (ordre de grandeur, vault moyen).
-- `npm test` : cas incrémental vert.
-- CI : `link-graph:build --full` ou cache restauré entre jobs (documenter choix).
+- `predev` after editing a note: rebuild < 200 ms on typical dev machine (order of magnitude, medium vault).
+- `npm test`: incremental case green.
+- CI: `link-graph:build --full` or cache restored between jobs (document choice).
 
 ---
 
-## Phase 7 — Intégrations optionnelles
+## Phase 7 — Optional integrations
 
-### Objectif
+### Objective
 
-Enrichir l'expérience éditoriale ou la navigation globale **sans remplacer** le graphe MD des phases 1–5.
+Enrich the editorial experience or global navigation **without replacing** the MD graph from phases 1–5.
 
-### 7a — Plugin Obsidian metadata-extractor (debug local)
+### 7a — Obsidian metadata-extractor plugin (local debug)
 
-**But** : comparer localement « Obsidian dit X rétroliens » vs « le build dit Y ».
+**Purpose**: locally compare “Obsidian says X backlinks” vs “the build says Y”.
 
-| Aspect | Détail |
+| Aspect | Detail |
 |--------|--------|
-| Plugin | [metadata-extractor](https://github.com/kometenstaub/metadata-extractor) exporte un JSON avec `links` et `backlinks` par fichier |
-| Usage | export déclenché à la sauvegarde ou manuellement, chemin configurable |
-| Règle | le build **ne consomme jamais** ce JSON en CI comme source unique |
-| Filtre | script de diff local optionnel : intersection avec pages publiées (`gitignore`) |
+| Plugin | [metadata-extractor](https://github.com/kometenstaub/metadata-extractor) exports JSON with `links` and `backlinks` per file |
+| Usage | export on save or manually, configurable path |
+| Rule | the build **never consumes** this JSON in CI as the sole source |
+| Filter | optional local diff script: intersection with published pages (`gitignore`) |
 
-**Documentation** : section README « Debug backlinks vs Obsidian » — procédure manuelle, pas de dépendance runtime.
+**Documentation**: README section “Debug backlinks vs Obsidian” — manual procedure, no runtime dependency.
 
-**Pourquoi pas en source principale** : Obsidian indexe tout le vault (y compris `_private`, brouillons) ; le site a un périmètre publish strict. Deux sources = risque de divergence.
+**Why not the main source**: Obsidian indexes the entire vault (including `_private`, drafts); the site has a strict publish scope. Two sources = divergence risk.
 
-### 7b — starlight-site-graph (graphe visuel global)
+### 7b — starlight-site-graph (global visual graph)
 
-**But** : navigation par graphe interactif en plus des listes de rétroliens.
+**Purpose**: interactive graph navigation in addition to backlink lists.
 
-| Aspect | Détail |
+| Aspect | Detail |
 |--------|--------|
 | Package | [starlight-site-graph](https://fevol.github.io/starlight-site-graph/getting-started/) |
-| Composant | `<PageBacklinks />` natif du plugin |
-| Coût | `prefetch: true`, schéma étendu, sitemap généré depuis HTML en prod |
-| Relation | **complémentaire** au graphe MD — pas substitut pour wiki-links avant rendu |
+| Component | plugin’s native `<PageBacklinks />` |
+| Cost | `prefetch: true`, extended schema, sitemap generated from HTML in prod |
+| Relation | **complementary** to MD graph — not a substitute for wiki-links before render |
 
-**Évaluation avant adoption** :
+**Evaluation before adoption**:
 
-1. Mesurer temps build avec plugin vs graphe MD seul.
-2. Vérifier que les wiki-links (ex. vault ZTH : `[[00-lexique/ram|Titre]]`) deviennent bien des `<a href="/00-lexique/ram/">` dans le HTML dist (compatibles sitemap HTML).
-3. Décider : graphe global UI oui/non ; rétroliens restent sur `PageBacklinks.astro` maison ou migration vers composant plugin.
+1. Measure build time with plugin vs MD graph alone.
+2. Verify wiki-links (e.g. ZTH vault: `[[00-lexique/ram|Title]]`) become `<a href="/00-lexique/ram/">` in dist HTML (HTML sitemap compatible).
+3. Decide: global graph UI yes/no; backlinks remain on custom `PageBacklinks.astro` or migrate to plugin component.
 
-**Verdict attendu** : garder le graphe MD pour les rétroliens (prévisible, testé) ; ajouter site-graph **seulement** si le graphe visuel est une priorité produit.
+**Expected verdict**: keep MD graph for backlinks (predictable, tested); add site-graph **only** if the visual graph is a product priority.
 
-### 7c — Parallélisation (secours)
+### 7c — Parallelization (fallback)
 
-Si le cache incrémental ne suffit pas (> ~2000 pages, rebuild `--full` fréquent) :
+If incremental cache is insufficient (> ~2000 pages, frequent `--full` rebuilds):
 
-- partitionner le walk vault par répertoire de premier niveau ;
-- worker threads Node (`worker_threads`) pour extract + normalisation ;
-- fusionner les arêtes dans le thread principal.
+- partition vault walk by top-level directory;
+- Node worker threads (`worker_threads`) for extract + normalization;
+- merge edges in the main thread.
 
-Non prioritaire tant que les métriques phase 6 restent sous le seuil documenté.
+Not a priority while phase 6 metrics stay below the documented threshold.
 
 ---
 
-## Fin du plan 2
+## End of plan 2
 
-Ces phases sont **optionnelles** et **découplées** : la feature rétroliens est complète après le plan 1.
+These phases are **optional** and **decoupled**: the backlinks feature is complete after plan 1.
 
-| Phase | Priorité | Quand |
+| Phase | Priority | When |
 |-------|----------|-------|
-| 6 — Cache incrémental | Haute (plus tard) | prébuild > ~2 s ou > ~500 pages |
-| 7a — metadata-extractor | Basse | debug auteur Obsidian |
-| 7b — starlight-site-graph | Basse | besoin graphe visuel global |
-| 7c — Workers | Très basse | cache insuffisant à grande échelle |
+| 6 — Incremental cache | High (later) | prebuild > ~2 s or > ~500 pages |
+| 7a — metadata-extractor | Low | Obsidian author debug |
+| 7b — starlight-site-graph | Low | need global visual graph |
+| 7c — Workers | Very low | cache insufficient at large scale |
 
-**Retour** : [plan 1 — phases 1 à 5](2026_06_01_14-00_main_link-graph-backlinks-phases-1-5.plan.md).
+**Back**: [plan 1 — phases 1 to 5](2026_06_01_14-00_main_link-graph-backlinks-phases-1-5.plan.md).
 
 ---
 
-## Risques spécifiques phases 6–7
+## Phase 6–7 specific risks
 
-| Risque | Mitigation |
+| Risk | Mitigation |
 |--------|------------|
-| Cache corrompu / stale | flag `--full` ; invalidation si version schéma cache change |
-| CI sans cache persistant | toujours `--full` en CI ou artefact cache entre jobs |
-| Double maintenance graphe MD + site-graph | site-graph UI only ; backlinks restent sur JSON MD |
-| metadata-extractor inclut pages privées | diff script filtre publish ; jamais en pipeline prod |
+| Corrupted / stale cache | `--full` flag; invalidation if cache schema version changes |
+| CI without persistent cache | always `--full` in CI or cache artefact between jobs |
+| Double maintenance MD graph + site-graph | site-graph UI only; backlinks stay on MD JSON |
+| metadata-extractor includes private pages | diff script filters publish; never in prod pipeline |
