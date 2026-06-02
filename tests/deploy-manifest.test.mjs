@@ -16,6 +16,7 @@ import {
     attachUploadAbsPaths,
     loadManifest,
     saveManifest,
+    planIncrementalDeploy,
 } from '../scripts/lib/deploy-manifest.mjs';
 import { deployModeFromArgv, isFullDeployArgv } from '../scripts/lib/deploy.mjs';
 
@@ -155,4 +156,28 @@ test('mergeManifestSources picks newer updatedAt', () => {
 test('parseManifestJson rejects invalid shape', () => {
     assert.equal(parseManifestJson({ version: 1 }), null);
     assert.ok(parseManifestJson({ files: {} }));
+});
+
+test('planIncrementalDeploy uses remote manifest for diff and deletes', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'deploy-plan-remote-'));
+    const distDir = path.join(dir, 'dist');
+    fs.mkdirSync(distDir);
+    const filePath = path.join(distDir, 'a.html');
+    fs.writeFileSync(filePath, 'hello');
+
+    const entry = await hashDistFile(filePath);
+    const remote = emptyManifest(config);
+    remote.updatedAt = '2026-06-02T12:00:00.000Z';
+    remote.files = {
+        'stale.html': { sha256: 'deadbeef', size: 4 },
+    };
+
+    const { diff } = await planIncrementalDeploy(distDir, config, undefined, { remoteManifest: remote });
+    assert.equal(diff.toUpload.length, 1);
+    assert.equal(diff.toUpload[0].rel, 'a.html');
+    assert.equal(diff.toUpload[0].entry.sha256, entry.sha256);
+    assert.deepEqual(diff.toDelete, ['stale.html']);
+    assert.equal(diff.unchanged, 0);
+
+    fs.rmSync(dir, { recursive: true, force: true });
 });

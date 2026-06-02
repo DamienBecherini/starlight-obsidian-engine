@@ -90,6 +90,11 @@ async function fetchRemoteManifestFtps(client, remoteBase) {
     const remotePath = remoteManifestPath(remoteBase);
     const tmpPath = path.join(os.tmpdir(), `deploy-manifest-${Date.now()}.json`);
     try {
+        await client.size(remotePath);
+    } catch {
+        return null;
+    }
+    try {
         await client.downloadTo(tmpPath, remotePath);
         const text = fs.readFileSync(tmpPath, 'utf8');
         return parseManifestJson(JSON.parse(text));
@@ -665,6 +670,11 @@ async function uploadDistSftpIncremental(config, distDir, mirror, askConfirm) {
 
         console.log('   Syncing manifest from remote…');
         const remoteManifest = await fetchRemoteManifestSftp(sftp, normalizedRemote);
+        if (remoteManifest) {
+            console.log(`   Remote manifest: ${Object.keys(remoteManifest.files ?? {}).length} file(s).`);
+        } else {
+            console.log('   Remote manifest: none (first deploy or not on server yet).');
+        }
 
         const { manifest, diff } = await planIncrementalDeploy(distDir, config, (done, total, rel) => {
             if (done === 1 || done === total || done % 50 === 0) {
@@ -1390,6 +1400,11 @@ async function uploadDistFtpsIncremental(config, distDir, mirror, askConfirm) {
 
         console.log('   Syncing manifest from remote…');
         const remoteManifest = await fetchRemoteManifestFtps(session.client, remoteBase);
+        if (remoteManifest) {
+            console.log(`   Remote manifest: ${Object.keys(remoteManifest.files ?? {}).length} file(s).`);
+        } else {
+            console.log('   Remote manifest: none (first deploy or not on server yet).');
+        }
 
         const { manifest, diff } = await planIncrementalDeploy(distDir, config, (done, total, rel) => {
             if (done === 1 || done === total || done % 50 === 0) {

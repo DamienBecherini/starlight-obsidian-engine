@@ -1,6 +1,7 @@
 // @ts-check
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
@@ -69,4 +70,27 @@ test('filterBacklinksForDisplay removes self-links', () => {
 test('resolveLinkTarget uses alias index', () => {
     const { publishedSlugs, aliasToSlug } = buildPublishedIndex(fixtureVault);
     assert.equal(resolveLinkTarget('PageBee', publishedSlugs, aliasToSlug), 'page-b');
+});
+
+test('collectUnresolvedLinks ignores resolved targets and lists broken ones', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'link-graph-unresolved-'));
+    fs.writeFileSync(
+        path.join(dir, 'site.config.json'),
+        JSON.stringify({ title: 'T', defaultLocale: 'root', locales: { root: { label: 'L', lang: 'en' } } }),
+    );
+    fs.writeFileSync(path.join(dir, 'ok.md'), '---\ntitle: OK\n---\n\nSee [[target]].');
+    fs.writeFileSync(path.join(dir, 'target.md'), '---\ntitle: Target\n---\n\nContent.');
+    fs.writeFileSync(path.join(dir, 'broken.md'), '---\ntitle: Broken\n---\n\n[[missing-page]].');
+    fs.mkdirSync(path.join(dir, 'sub'));
+    fs.writeFileSync(
+        path.join(dir, 'sub', 'nested.md'),
+        '---\ntitle: Nested\n---\n\n[broken relative](../nowhere.md).',
+    );
+
+    const unresolved = collectUnresolvedLinks(dir);
+    assert.ok(unresolved.some((u) => u.from === 'broken' && u.raw === 'missing-page'));
+    assert.ok(unresolved.some((u) => u.from === 'sub/nested' && u.path === 'nowhere'));
+    assert.equal(unresolved.some((u) => u.from === 'ok'), false);
+
+    fs.rmSync(dir, { recursive: true, force: true });
 });
