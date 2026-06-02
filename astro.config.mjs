@@ -3,6 +3,7 @@ import { defineConfig } from 'astro/config';
 import { markdown } from './config/markdown.mjs';
 import { integrations } from './config/integrations.mjs';
 import { loadSiteConfig } from './config/site.mjs';
+import { linkGraphWatchPlugin } from './config/vite/link-graph-watch.mjs';
 
 const { url: siteUrl } = loadSiteConfig();
 
@@ -27,7 +28,7 @@ export default defineConfig({
     markdown,
     integrations,
     vite: {
-        plugins: analyzePlugins,
+        plugins: [linkGraphWatchPlugin(), ...analyzePlugins],
         resolve: {
             preserveSymlinks: true,
         },

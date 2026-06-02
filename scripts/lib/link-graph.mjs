@@ -33,7 +33,7 @@ export function pageResolver(name) {
  * @returns {string}
  */
 export function normalizeLinkTarget(raw) {
-    let t = raw.trim().replace(/^\//, '');
+    let t = raw.trim().replace(/^\//, '').replace(/\\+$/g, '');
     const hash = t.indexOf('#');
     if (hash !== -1) t = t.slice(0, hash);
     t = t.replace(/\.mdx?$/i, '');

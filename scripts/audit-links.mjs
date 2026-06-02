@@ -1,25 +1,23 @@
 // @ts-check
 /**
  * Lists wiki-links and internal Markdown links that do not resolve to a published vault page.
- * Useful for lexicon backlog maintenance and broken-link audits.
+ * Default: exit 1 only on unexpected unresolved links (allowlist from lexicon backlog + roadmap placeholders).
+ * --strict: exit 1 on any unresolved link.
+ * --warn-only: always exit 0.
  */
 import { resolveVaultGitRoot } from '../config/vault.mjs';
-import { collectUnresolvedLinks } from './lib/link-graph.mjs';
+import {
+    linkAuditExitCode,
+    printLinkAuditReport,
+    runLinkAudit,
+} from './lib/audit-links-lib.mjs';
+
+const args = process.argv.slice(2);
+const strict = args.includes('--strict');
+const warnOnly = args.includes('--warn-only');
 
 const vaultRoot = resolveVaultGitRoot();
-const unresolved = collectUnresolvedLinks(vaultRoot);
+const result = runLinkAudit(vaultRoot);
 
-if (!unresolved.length) {
-    console.log('✅ No unresolved internal links in published vault content.');
-    process.exit(0);
-}
-
-console.log(`⚠️  ${unresolved.length} unresolved internal link(s):\n`);
-for (const item of unresolved) {
-    console.log(`  ${item.from}`);
-    console.log(`    raw: ${item.raw}`);
-    console.log(`    path: ${item.path}`);
-    console.log('');
-}
-
-process.exit(1);
+printLinkAuditReport(result, { strict });
+process.exit(linkAuditExitCode(result, { strict, warnOnly }));

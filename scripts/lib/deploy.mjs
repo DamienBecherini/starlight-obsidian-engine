@@ -25,6 +25,8 @@ import {
 import { isProtectedRel, compareUploadParentKeys, groupUploadsByParent } from './deploy-paths.mjs';
 /** Shared SFTP client: parallel uploads (single connection). */
 const SFTP_UPLOAD_CONCURRENCY = 8;
+/** Persist local manifest during SFTP upload (resume after interrupt). */
+const SFTP_MANIFEST_CHECKPOINT = 20;
 
 /**
  * @template T
@@ -532,6 +534,9 @@ async function uploadSelectedFilesSftp(sftp, normalizedRemote, uploads, manifest
         transferState.fileOrdinal = done;
         transferState.lastFile = path.basename(rel);
         progress.onFile(done, rel);
+        if (done % SFTP_MANIFEST_CHECKPOINT === 0) {
+            saveManifest(manifest, vaultRoot);
+        }
     });
 
     progress.finish();

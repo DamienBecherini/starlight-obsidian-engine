@@ -138,7 +138,7 @@ See [docs/plans/2026_06_01_14-00_main_link-graph-backlinks-phases-1-5.plan.md](d
 | `npm run lexicon:index` | Regenerate the vault lexicon index (`lexicon.indexPage`) from entry frontmatter |
 | `npm run lexicon:voir-aussi` | Upgrade `## Voir aussi` wiki links in lexicon entry pages |
 | `npm run link-graph:build` | Regenerate `src/generated/link-graph.json` from vault link graph |
-| `npm run audit:links` | List unresolved wiki/MD internal links in the vault (lexicon backlog aid) |
+| `npm run audit:links` | Unresolved wiki/MD links: fails only on unexpected broken links (allowlist: lexicon backlog + `.agents/vault-maintenance/link-audit-allowlist.md`); `--strict` / `--warn-only` |
 | `npm run publish` | Git sync (optional) → build → remote upload (see [Publishing](#publishing)) |
 | `npm run deploy` | Build + remote upload (no git) |
 | `npm run upload` | Remote upload only (existing `dist/`, no git, no build) |
@@ -352,7 +352,7 @@ npm run publish
 
 npm run deploy  →  validate config → build → incremental upload (synced manifest)
 npm run upload  →  validate config → incremental upload (dist/ must already exist; run build first)
-npm run audit:links  →  list unresolved internal links in the vault (maintenance)
+npm run audit:links  →  unresolved links (exit 1 only on unexpected; use --strict for zero tolerance)
 ```
 
 ### Private site (Basic Auth)
