@@ -2,10 +2,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-    extractVoirAussiSectionBody,
-    extractVoirAussiTargets,
-    voirAussiSlugSet,
-} from '../scripts/lib/voir-aussi-links.mjs';
+    DEFAULT_SEE_ALSO_HEADINGS,
+    extractSeeAlsoSectionBody,
+    extractSeeAlsoTargets,
+    seeAlsoSlugSet,
+} from '../scripts/lib/see-also-links.mjs';
 
 const ramMarkdown = `---
 title: RAM
@@ -24,15 +25,15 @@ Text.
 - [[00-lexique/pcie|PCIe]]
 `;
 
-test('extractVoirAussiSectionBody stops at next heading', () => {
-    const body = extractVoirAussiSectionBody(ramMarkdown);
+test('extractSeeAlsoSectionBody stops at next heading', () => {
+    const body = extractSeeAlsoSectionBody(ramMarkdown);
     assert.match(body, /VRAM/);
     assert.match(body, /Offloading/);
     assert.doesNotMatch(body, /PCIe/);
 });
 
-test('extractVoirAussiTargets resolves wiki links relative to source slug', () => {
-    const targets = extractVoirAussiTargets(ramMarkdown, '00-lexique/ram');
+test('extractSeeAlsoTargets resolves wiki links relative to source slug', () => {
+    const targets = extractSeeAlsoTargets(ramMarkdown, '00-lexique/ram');
     assert.deepEqual(targets.sort(), [
         '00-lexique/offloading',
         '00-lexique/vram',
@@ -40,13 +41,41 @@ test('extractVoirAussiTargets resolves wiki links relative to source slug', () =
     ]);
 });
 
-test('extractVoirAussiTargets supports plain Voir aussi heading', () => {
+test('extractSeeAlsoTargets supports plain Voir aussi heading', () => {
     const md = `## Voir aussi
 - [[00-lexique/apu|APU]]
 `;
-    assert.deepEqual(extractVoirAussiTargets(md, '00-lexique/ram'), ['00-lexique/apu']);
+    assert.deepEqual(extractSeeAlsoTargets(md, '00-lexique/ram'), ['00-lexique/apu']);
 });
 
-test('voirAussiSlugSet returns empty set when section absent', () => {
-    assert.equal(voirAussiSlugSet('# Title\n\nNo links.', '00-lexique/ram').size, 0);
+test('extractSeeAlsoTargets supports English default headings', () => {
+    const md = `## See also
+- [[00-lexique/apu|APU]]
+
+## Next
+- [[00-lexique/vram|VRAM]]
+`;
+    assert.deepEqual(extractSeeAlsoTargets(md, '00-lexique/ram'), ['00-lexique/apu']);
+});
+
+test('extractSeeAlsoTargets supports custom headings', () => {
+    const md = `## Recommended reading
+- [[01-fondations/la-bande-passante-memoire|Bandwidth]]
+`;
+    assert.deepEqual(extractSeeAlsoTargets(md, '00-lexique/ram', ['Recommended reading']), [
+        '01-fondations/la-bande-passante-memoire',
+    ]);
+});
+
+test('default headings cover French and English related sections', () => {
+    assert.deepEqual(DEFAULT_SEE_ALSO_HEADINGS, [
+        'Voir aussi',
+        'See also',
+        'Related',
+        'Related pages',
+    ]);
+});
+
+test('seeAlsoSlugSet returns empty set when section absent', () => {
+    assert.equal(seeAlsoSlugSet('# Title\n\nNo links.', '00-lexique/ram').size, 0);
 });

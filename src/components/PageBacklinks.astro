@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { loadLinkGraph } from '../../scripts/lib/link-graph-data.mjs';
 import { getLexiconDisplayExclusions } from '../../scripts/lib/link-graph.mjs';
-import { voirAussiSlugSet } from '../../scripts/lib/voir-aussi-links.mjs';
+import { seeAlsoSlugSet } from '../../scripts/lib/see-also-links.mjs';
 import { isLexiconEnabled, loadLexiconConfig } from '../../config/lexicon.mjs';
 import { resolveVaultGitRoot } from '../../config/vault.mjs';
 import { siteHrefFromVaultSlug, vaultSlugFromRouteEntry } from '../lib/backlinks-routing.mjs';
@@ -16,17 +16,17 @@ const graph = loadLinkGraph();
 const exclusions = getLexiconDisplayExclusions(vaultRoot);
 const lexicon = loadLexiconConfig(vaultRoot);
 
-function loadVoirAussiSlugs(slug: string): Set<string> {
+function loadSeeAlsoSlugs(slug: string): Set<string> {
     const mdPath = path.join(vaultRoot, `${slug}.md`);
     if (!fs.existsSync(mdPath)) return new Set<string>();
     try {
-        return voirAussiSlugSet(fs.readFileSync(mdPath, 'utf8'), slug);
+        return seeAlsoSlugSet(fs.readFileSync(mdPath, 'utf8'), slug);
     } catch {
         return new Set<string>();
     }
 }
 
-const voirAussiSlugs = currentSlug ? loadVoirAussiSlugs(currentSlug) : new Set<string>();
+const seeAlsoSlugs = currentSlug ? loadSeeAlsoSlugs(currentSlug) : new Set<string>();
 
 const panel = buildBacklinkPanel({
     currentSlug,
@@ -34,7 +34,7 @@ const panel = buildBacklinkPanel({
     lexicon,
     exclusions,
     sortLocale: isLexiconEnabled(lexicon) ? lexicon.sortLocale : 'fr',
-    voirAussiSlugs,
+    seeAlsoSlugs,
 });
 
 const { entries, isLexiconPage, heading, grouped: sortedGroups, shouldRender } = panel;

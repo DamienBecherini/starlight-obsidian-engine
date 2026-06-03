@@ -45,14 +45,14 @@ export function resolveBacklinkPanelEntries(rawEntries, currentSlug, exclusions)
 }
 
 /**
- * Drop inbound links whose source page is already listed in the current page’s Voir aussi section.
+ * Drop inbound links whose source page is already listed in the current page’s related-links section.
  * @param {BacklinkEntry[]} entries
- * @param {Set<string>} [voirAussiSlugs]
+ * @param {Set<string>} [seeAlsoSlugs]
  * @returns {BacklinkEntry[]}
  */
-export function excludeVoirAussiSources(entries, voirAussiSlugs) {
-    if (!voirAussiSlugs?.size) return entries;
-    return entries.filter((entry) => !voirAussiSlugs.has(entry.from));
+export function excludeSeeAlsoSources(entries, seeAlsoSlugs) {
+    if (!seeAlsoSlugs?.size) return entries;
+    return entries.filter((entry) => !seeAlsoSlugs.has(entry.from));
 }
 
 /**
@@ -111,7 +111,7 @@ export function groupBacklinkEntries(entries, isLexiconPage, sortLocale = 'fr') 
  *   lexicon: import('../../config/lexicon.mjs').LexiconConfig,
  *   exclusions: { excludeSourceSlugs: Set<string>, excludeTargetSlugs: Set<string> },
  *   sortLocale?: string,
- *   voirAussiSlugs?: Set<string>,
+ *   seeAlsoSlugs?: Set<string>,
  * }} input
  */
 export function buildBacklinkPanel(input) {
@@ -121,11 +121,11 @@ export function buildBacklinkPanel(input) {
         lexicon,
         exclusions,
         sortLocale = 'fr',
-        voirAussiSlugs,
+        seeAlsoSlugs,
     } = input;
-    const entries = excludeVoirAussiSources(
+    const entries = excludeSeeAlsoSources(
         resolveBacklinkPanelEntries(rawEntries, currentSlug, exclusions),
-        voirAussiSlugs,
+        seeAlsoSlugs,
     );
     const isLexiconPage = isLexiconBacklinkPage(
         currentSlug,

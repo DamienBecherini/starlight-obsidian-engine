@@ -9,7 +9,7 @@ import {
     backlinkPanelHeading,
     backlinkSectionHeading,
     buildBacklinkPanel,
-    excludeVoirAussiSources,
+    excludeSeeAlsoSources,
     groupBacklinkEntries,
     humanizeSectionSlug,
     isLexiconBacklinkPage,
@@ -141,27 +141,27 @@ test('backlinkSectionHeading hides lexicon directory rubric', () => {
     assert.equal(backlinkSectionHeading('', lexiconEnabled), null);
 });
 
-test('excludeVoirAussiSources removes pages already linked in Voir aussi', () => {
+test('excludeSeeAlsoSources removes pages already linked in related-links section', () => {
     const entries = resolveBacklinkPanelEntries(ramBacklinks, '00-lexique/ram', exclusions);
-    const voirAussi = new Set([
+    const seeAlso = new Set([
         '00-lexique/offloading',
         '00-lexique/vram',
         '01-fondations/memoire-unifiee-vs-ram-vs-vram',
     ]);
-    assert.equal(excludeVoirAussiSources(entries, voirAussi).length, 0);
+    assert.equal(excludeSeeAlsoSources(entries, seeAlso).length, 0);
     assert.deepEqual(
-        excludeVoirAussiSources(entries, new Set(['00-lexique/vram'])).map((e) => e.from),
+        excludeSeeAlsoSources(entries, new Set(['00-lexique/vram'])).map((e) => e.from),
         ['00-lexique/offloading', '01-fondations/memoire-unifiee-vs-ram-vs-vram'],
     );
 });
 
-test('buildBacklinkPanel hides panel when Voir aussi covers all backlinks', () => {
+test('buildBacklinkPanel hides panel when related-links section covers all backlinks', () => {
     const panel = buildBacklinkPanel({
         currentSlug: '00-lexique/ram',
         rawEntries: ramBacklinks,
         lexicon: lexiconEnabled,
         exclusions,
-        voirAussiSlugs: new Set([
+        seeAlsoSlugs: new Set([
             '00-lexique/offloading',
             '00-lexique/vram',
             '01-fondations/memoire-unifiee-vs-ram-vs-vram',

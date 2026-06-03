@@ -66,3 +66,26 @@ npm test
 ```
 
 Manual: `npm run build && npm run preview` → `/00-lexique/ram/` under 72rem width.
+
+---
+
+## Follow-up report — generic related-links headings
+
+### Why
+
+The initial implementation was engine-only, but it embedded the French heading `Voir aussi` in the backlinks dedup parser. That made the feature work for the ZTH vault while silently skipping equivalent sections in other vaults, such as `## See also`.
+
+### Changes
+
+| File | Change |
+|------|--------|
+| `scripts/lib/see-also-links.mjs` | **New** generic parser with default headings: `Voir aussi`, `See also`, `Related`, `Related pages`; also supports custom heading arrays. |
+| `scripts/lib/voir-aussi-links.mjs` | Compatibility re-export to avoid breaking older internal imports. |
+| `src/components/PageBacklinks.astro` | Uses `seeAlsoSlugSet` / `seeAlsoSlugs` naming. |
+| `src/lib/backlinks-panel.mjs` | Renamed dedup API to `excludeSeeAlsoSources`; panel input now accepts `seeAlsoSlugs`. |
+| `tests/voir-aussi-links.test.mjs` | Tests now target the generic parser and cover French, English, and custom headings. |
+| `tests/backlinks-panel.test.mjs` | Updated to generic related-links naming. |
+
+### Vault impact
+
+No required vault changes. French vaults keep working with `## Voir aussi`; English or mixed vaults also work with `## See also`, `## Related`, or `## Related pages`. A future config option can pass custom headings if a vault uses a different convention.
