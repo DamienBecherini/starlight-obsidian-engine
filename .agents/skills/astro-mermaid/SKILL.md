@@ -3,7 +3,7 @@ name: astro-mermaid
 description: Debugging and maintaining the client-side Mermaid pan/zoom/fullscreen enhancer in this repo (src/components/MermaidEnhancer.astro, built on svg-pan-zoom + astro-mermaid). Use when a Mermaid diagram misbehaves — zoom/pan not refreshing, blank/empty diagram after fullscreen exit, controls duplicated or missing, theme re-render wiping controls, or any svg-pan-zoom transform/viewBox glitch. Encodes hard-won gotchas so you don't have to re-investigate from scratch.
 license: MIT
 metadata:
-  author: debug-session
+  author: Damien BECHERINI's AI
   version: "1.2.0"
   category: debugging
   tags: mermaid, svg-pan-zoom, astro, fullscreen, pan-zoom, client-script, debugging

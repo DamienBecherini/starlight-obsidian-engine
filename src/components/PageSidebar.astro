@@ -1,6 +1,6 @@
 ---
-import MobileTableOfContents from 'virtual:starlight/components/MobileTableOfContents';
-import TableOfContents from 'virtual:starlight/components/TableOfContents';
+import MobileTableOfContents from '@astrojs/starlight/components/MobileTableOfContents.astro';
+import TableOfContents from '@astrojs/starlight/components/TableOfContents.astro';
 import PageBacklinks from './PageBacklinks.astro';
 
 const { toc } = Astro.locals.starlightRoute;
@@ -59,6 +59,26 @@ const { toc } = Astro.locals.starlightRoute;
         .right-sidebar-panel :global(:where(a):hover) {
             color: var(--sl-color-white);
         }
+
+        :global(:root[data-theme='dark'] #starlight__mobile-toc[open] .dropdown) {
+            border-color: color-mix(in srgb, var(--sl-color-gray-4) 62%, transparent);
+            border-top-color: color-mix(in srgb, var(--sl-color-gray-3) 52%, transparent);
+            background-color: rgba(8, 13, 24, 0.88);
+            background-color: color-mix(in srgb, var(--sl-color-black) 86%, transparent);
+            box-shadow:
+                0 1rem 2.75rem rgba(0, 0, 0, 0.72),
+                0 0 0 1px rgba(255, 255, 255, 0.07),
+                0 0 2rem rgba(80, 110, 170, 0.18);
+            backdrop-filter: blur(12px) saturate(125%);
+            -webkit-backdrop-filter: blur(12px) saturate(125%);
+        }
+
+        @supports not (backdrop-filter: blur(1px)) {
+            :global(:root[data-theme='dark'] #starlight__mobile-toc[open] .dropdown) {
+                background-color: var(--sl-color-black);
+            }
+        }
+
         @media (min-width: 72rem) {
             .right-sidebar-panel > .sl-container,
             .right-sidebar-panel__inner > .sl-container,
