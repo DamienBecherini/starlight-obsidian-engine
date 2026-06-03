@@ -17,6 +17,8 @@ import {
     buildPublishedIndex,
     collectUnresolvedLinks,
 } from '../scripts/lib/link-graph.mjs';
+import { defaultLinkGraphPath, loadLinkGraph, loadLinkGraphFromFile } from '../scripts/lib/link-graph-data.mjs';
+import { projectRoot } from '../config/vault.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const fixtureVault = path.join(__dirname, 'fixtures', 'link-graph-vault');
@@ -93,4 +95,12 @@ test('collectUnresolvedLinks ignores resolved targets and lists broken ones', ()
     assert.equal(unresolved.some((u) => u.from === 'ok'), false);
 
     fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('loadLinkGraph default path resolves from project root', () => {
+    assert.equal(defaultLinkGraphPath, path.join(projectRoot, 'src/generated/link-graph.json'));
+    const graph = loadLinkGraphFromFile();
+    assert.ok(typeof graph.backlinks === 'object');
+    assert.ok(Object.keys(graph.backlinks).length > 0, 'expected generated link-graph.json at build time');
+    assert.ok(Array.isArray(loadLinkGraph().backlinks['00-lexique/ram']));
 });

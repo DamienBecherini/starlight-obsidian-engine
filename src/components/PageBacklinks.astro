@@ -1,10 +1,13 @@
 ---
+import fs from 'node:fs';
+import path from 'node:path';
 import { loadLinkGraph } from '../../scripts/lib/link-graph-data.mjs';
 import { getLexiconDisplayExclusions } from '../../scripts/lib/link-graph.mjs';
+import { voirAussiSlugSet } from '../../scripts/lib/voir-aussi-links.mjs';
 import { isLexiconEnabled, loadLexiconConfig } from '../../config/lexicon.mjs';
 import { resolveVaultGitRoot } from '../../config/vault.mjs';
 import { siteHrefFromVaultSlug, vaultSlugFromRouteEntry } from '../lib/backlinks-routing.mjs';
-import { buildBacklinkPanel } from '../lib/backlinks-panel.mjs';
+import { backlinkSectionHeading, buildBacklinkPanel } from '../lib/backlinks-panel.mjs';
 
 const route = Astro.locals.starlightRoute;
 const vaultRoot = resolveVaultGitRoot();
@@ -13,83 +16,194 @@ const graph = loadLinkGraph();
 const exclusions = getLexiconDisplayExclusions(vaultRoot);
 const lexicon = loadLexiconConfig(vaultRoot);
 
+function loadVoirAussiSlugs(slug: string): Set<string> {
+    const mdPath = path.join(vaultRoot, `${slug}.md`);
+    if (!fs.existsSync(mdPath)) return new Set<string>();
+    try {
+        return voirAussiSlugSet(fs.readFileSync(mdPath, 'utf8'), slug);
+    } catch {
+        return new Set<string>();
+    }
+}
+
+const voirAussiSlugs = currentSlug ? loadVoirAussiSlugs(currentSlug) : new Set<string>();
+
 const panel = buildBacklinkPanel({
     currentSlug,
     rawEntries: currentSlug ? (graph.backlinks[currentSlug] ?? []) : [],
     lexicon,
     exclusions,
     sortLocale: isLexiconEnabled(lexicon) ? lexicon.sortLocale : 'fr',
+    voirAussiSlugs,
 });
 
 const { entries, isLexiconPage, heading, grouped: sortedGroups, shouldRender } = panel;
 const locale = route.entryMeta.locale ?? route.locale;
+
+interface Props {
+    /** `sidebar` = right column (desktop). `mobile` = below page body on small screens. */
+    mode?: 'sidebar' | 'mobile';
+}
+
+const { mode = 'sidebar' } = Astro.props;
 ---
 
 {
-    shouldRender && (
-        <div class="page-backlinks">
-            <h2>{heading}</h2>
-            {isLexiconPage ? (
-                sortedGroups.map(([section, groupEntries]) => (
-                    <div class="page-backlinks__group">
-                        {section ? <h3 class="page-backlinks__section">{section}</h3> : null}
+    shouldRender &&
+        (mode === 'mobile' ? (
+            <div class="page-backlinks page-backlinks--mobile">
+                <h2>{heading}</h2>
+                <div class="page-backlinks__list">
+                    {isLexiconPage ? (
+                        sortedGroups.map(([section, groupEntries]) => {
+                            const sectionLabel = backlinkSectionHeading(section, lexicon);
+                            return (
+                                <div class="page-backlinks__group">
+                                    {sectionLabel ? (
+                                        <h3 class="page-backlinks__section">{sectionLabel}</h3>
+                                    ) : null}
+                                    <ul>
+                                        {groupEntries.map((e) => (
+                                            <li>
+                                                <a href={siteHrefFromVaultSlug(e.from, locale)}>{e.title}</a>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            );
+                        })
+                    ) : (
                         <ul>
-                            {groupEntries.map((e) => (
+                            {entries.map((e) => (
                                 <li>
                                     <a href={siteHrefFromVaultSlug(e.from, locale)}>{e.title}</a>
                                 </li>
                             ))}
                         </ul>
-                    </div>
-                ))
-            ) : (
-                <ul>
-                    {entries.map((e) => (
-                        <li>
-                            <a href={siteHrefFromVaultSlug(e.from, locale)}>{e.title}</a>
-                        </li>
-                    ))}
-                </ul>
-            )}
-        </div>
-    )
+                    )}
+                </div>
+            </div>
+        ) : (
+            <div class="page-backlinks page-backlinks--sidebar">
+                <h2>{heading}</h2>
+                <div class="page-backlinks__list">
+                    {isLexiconPage ? (
+                        sortedGroups.map(([section, groupEntries]) => {
+                            const sectionLabel = backlinkSectionHeading(section, lexicon);
+                            return (
+                                <div class="page-backlinks__group">
+                                    {sectionLabel ? (
+                                        <h3 class="page-backlinks__section">{sectionLabel}</h3>
+                                    ) : null}
+                                    <ul>
+                                        {groupEntries.map((e) => (
+                                            <li>
+                                                <a href={siteHrefFromVaultSlug(e.from, locale)}>{e.title}</a>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            );
+                        })
+                    ) : (
+                        <ul>
+                            {entries.map((e) => (
+                                <li>
+                                    <a href={siteHrefFromVaultSlug(e.from, locale)}>{e.title}</a>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+                </div>
+            </div>
+        ))
 }
 
 <style>
     @layer starlight.core {
         .page-backlinks {
+            min-width: 0;
+        }
+        .page-backlinks--sidebar {
             margin-top: 1.5rem;
             padding-top: 1rem;
             border-top: 1px solid var(--sl-color-gray-5);
+        }
+        @media (min-width: 72rem) {
+            .page-backlinks--sidebar {
+                display: flex;
+                flex-direction: column;
+                min-height: 0;
+                overflow: hidden;
+            }
+            .page-backlinks--sidebar .page-backlinks__list {
+                flex: 1 1 0%;
+                min-height: 0;
+                overflow-x: hidden;
+                overflow-y: auto;
+                scrollbar-width: thin;
+            }
+        }
+        @media (max-width: 71.999rem) {
+            .page-backlinks--mobile h2 {
+                font-size: var(--sl-text-h2);
+                line-height: var(--sl-line-height-headings);
+                margin-bottom: 0;
+            }
         }
         .page-backlinks h2 {
             color: var(--sl-color-white);
             font-size: var(--sl-text-h5);
             font-weight: 600;
             margin-bottom: 0.5rem;
+            flex-shrink: 0;
         }
         .page-backlinks__section {
             color: var(--sl-color-gray-2);
             font-size: var(--sl-text-xs);
             font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.04em;
+            letter-spacing: 0.02em;
             margin: 0.75rem 0 0.35rem;
+            overflow-wrap: anywhere;
         }
-        .page-backlinks ul {
+        .page-backlinks--sidebar ul {
             list-style: none;
             padding: 0;
             margin: 0;
+            min-width: 0;
+        }
+        @media (max-width: 71.999rem) {
+            .page-backlinks--mobile ul {
+                list-style: disc;
+                padding-inline-start: 1.625rem;
+                margin: 0;
+                min-width: 0;
+            }
+            .page-backlinks--mobile a {
+                display: inline;
+                font-size: var(--sl-text-base);
+                line-height: var(--sl-line-height);
+                color: var(--sl-color-text-accent);
+            }
+            .page-backlinks--mobile a:hover {
+                color: var(--sl-color-white);
+            }
+        }
+        .page-backlinks ul {
+            min-width: 0;
         }
         .page-backlinks li + li {
             margin-top: 0.35rem;
         }
-        .page-backlinks a {
+        .page-backlinks--sidebar a {
+            display: block;
+            overflow-wrap: anywhere;
+            word-break: break-word;
             font-size: var(--sl-text-xs);
             color: var(--sl-color-gray-3);
             text-decoration: none;
         }
-        .page-backlinks a:hover {
+        .page-backlinks--sidebar a:hover {
             color: var(--sl-color-white);
         }
     }

@@ -7,8 +7,11 @@ import {
     BACKLINK_HEADING_DOC,
     BACKLINK_HEADING_LEXICON,
     backlinkPanelHeading,
+    backlinkSectionHeading,
     buildBacklinkPanel,
+    excludeVoirAussiSources,
     groupBacklinkEntries,
+    humanizeSectionSlug,
     isLexiconBacklinkPage,
     resolveBacklinkPanelEntries,
 } from '../src/lib/backlinks-panel.mjs';
@@ -125,6 +128,47 @@ test('groupBacklinkEntries keeps flat list for non-lexicon pages', () => {
     assert.equal(grouped.length, 1);
     assert.equal(grouped[0][0], '');
     assert.deepEqual(grouped[0][1].map((e) => e.from), ['00-lexique/ram', '00-lexique/vram']);
+});
+
+test('humanizeSectionSlug formats vault folder segments', () => {
+    assert.equal(humanizeSectionSlug('01-fondations'), '01 Fondations');
+    assert.equal(humanizeSectionSlug('02-materiel'), '02 Materiel');
+});
+
+test('backlinkSectionHeading hides lexicon directory rubric', () => {
+    assert.equal(backlinkSectionHeading('00-lexique', lexiconEnabled), null);
+    assert.equal(backlinkSectionHeading('01-fondations', lexiconEnabled), '01 Fondations');
+    assert.equal(backlinkSectionHeading('', lexiconEnabled), null);
+});
+
+test('excludeVoirAussiSources removes pages already linked in Voir aussi', () => {
+    const entries = resolveBacklinkPanelEntries(ramBacklinks, '00-lexique/ram', exclusions);
+    const voirAussi = new Set([
+        '00-lexique/offloading',
+        '00-lexique/vram',
+        '01-fondations/memoire-unifiee-vs-ram-vs-vram',
+    ]);
+    assert.equal(excludeVoirAussiSources(entries, voirAussi).length, 0);
+    assert.deepEqual(
+        excludeVoirAussiSources(entries, new Set(['00-lexique/vram'])).map((e) => e.from),
+        ['00-lexique/offloading', '01-fondations/memoire-unifiee-vs-ram-vs-vram'],
+    );
+});
+
+test('buildBacklinkPanel hides panel when Voir aussi covers all backlinks', () => {
+    const panel = buildBacklinkPanel({
+        currentSlug: '00-lexique/ram',
+        rawEntries: ramBacklinks,
+        lexicon: lexiconEnabled,
+        exclusions,
+        voirAussiSlugs: new Set([
+            '00-lexique/offloading',
+            '00-lexique/vram',
+            '01-fondations/memoire-unifiee-vs-ram-vs-vram',
+        ]),
+    });
+    assert.equal(panel.shouldRender, false);
+    assert.equal(panel.entries.length, 0);
 });
 
 test('buildBacklinkPanel regression: lexicon entry RAM panel', () => {

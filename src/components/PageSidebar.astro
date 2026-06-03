@@ -11,18 +11,21 @@ const { toc } = Astro.locals.starlightRoute;
         <>
             <div class="lg:sl-hidden">
                 <MobileTableOfContents />
-                <PageBacklinks />
             </div>
             <div class="right-sidebar-panel sl-hidden lg:sl-block">
-                <div class="sl-container page-sidebar-toc">
-                    <TableOfContents />
+                <div class="right-sidebar-panel__inner">
+                    <div class="sl-container page-sidebar-toc">
+                        <TableOfContents />
+                    </div>
+                    <PageBacklinks mode="sidebar" />
                 </div>
-                <PageBacklinks />
             </div>
         </>
     ) : (
         <div class="right-sidebar-panel sl-hidden lg:sl-block">
-            <PageBacklinks />
+            <div class="right-sidebar-panel__inner">
+                <PageBacklinks mode="sidebar" />
+            </div>
         </div>
     )
 }
@@ -32,14 +35,12 @@ const { toc } = Astro.locals.starlightRoute;
         .right-sidebar-panel {
             padding: 1rem var(--sl-sidebar-pad-x);
         }
-        .right-sidebar-panel > .sl-container {
+        .right-sidebar-panel > .sl-container,
+        .right-sidebar-panel__inner > .sl-container,
+        .right-sidebar-panel :global(.page-backlinks) {
             width: calc(var(--sl-sidebar-width) - 2 * var(--sl-sidebar-pad-x));
-        }
-        /* Cap TOC height so backlinks stay visible below without scrolling the whole sidebar. */
-        .page-sidebar-toc {
-            max-height: min(50vh, 24rem);
-            overflow-y: auto;
-            scrollbar-width: thin;
+            min-width: 0;
+            box-sizing: border-box;
         }
         .right-sidebar-panel :global(h2) {
             color: var(--sl-color-white);
@@ -59,7 +60,9 @@ const { toc } = Astro.locals.starlightRoute;
             color: var(--sl-color-white);
         }
         @media (min-width: 72rem) {
-            .right-sidebar-panel > .sl-container {
+            .right-sidebar-panel > .sl-container,
+            .right-sidebar-panel__inner > .sl-container,
+            .right-sidebar-panel :global(.page-backlinks) {
                 max-width: calc(
                     (
                         (
@@ -68,6 +71,42 @@ const { toc } = Astro.locals.starlightRoute;
                             ) * 0.25
                     )
                 );
+            }
+
+            :global([data-has-sidebar][data-has-toc] .right-sidebar) {
+                overflow-y: hidden;
+            }
+
+            .right-sidebar-panel {
+                height: calc(100vh - var(--sl-nav-height) - 2rem);
+                max-height: calc(100vh - var(--sl-nav-height) - 2rem);
+                overflow: hidden;
+            }
+
+            .right-sidebar-panel__inner {
+                display: flex;
+                flex-direction: column;
+                height: 100%;
+                min-height: 0;
+                overflow: hidden;
+            }
+
+            .page-sidebar-toc {
+                flex: 0 1 auto;
+                max-height: 50vh;
+                min-height: 0;
+                overflow-y: auto;
+                scrollbar-width: thin;
+            }
+
+            .right-sidebar-panel__inner :global(.page-backlinks) {
+                flex: 1 1 0%;
+                min-height: 0;
+                overflow: hidden;
+            }
+
+            .right-sidebar-panel__inner:not(:has(.page-sidebar-toc)) :global(.page-backlinks) {
+                max-height: 100%;
             }
         }
     }

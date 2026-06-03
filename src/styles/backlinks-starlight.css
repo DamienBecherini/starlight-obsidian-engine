@@ -1,8 +1,21 @@
-/* Backlinks panel — complements PageBacklinks.astro (right sidebar). */
+/* Backlinks panel — complements PageBacklinks.astro (right sidebar + mobile in Footer slot). */
 
 @layer starlight.components {
     .page-backlinks__group + .page-backlinks__group {
         margin-top: 0.5rem;
+    }
+
+    /* Mobile block sits in ContentPanel .sl-container, after markdown (Footer override). */
+    @media (max-width: 71.999rem) {
+        .page-mobile-backlinks:not(:has(.page-backlinks)) {
+            display: none;
+        }
+
+        .page-mobile-backlinks.sl-markdown-content {
+            width: 100%;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--sl-color-hairline);
+        }
     }
 
     /*

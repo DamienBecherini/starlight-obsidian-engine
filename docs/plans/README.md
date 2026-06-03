@@ -12,6 +12,7 @@ Agent and maintainer plans for [`starlight-obsidian-engine`](../../). Written in
 | [2026_06_02_19-13_main_publish-exclude-site-config.plan.md](2026_06_02_19-13_main_publish-exclude-site-config.plan.md) | `publish.exclude` in `site.config.json` | Delivered |
 | [2026_06_02_23-41_main_gemini-critique-fixes.plan.md](2026_06_02_23-41_main_gemini-critique-fixes.plan.md) | Deploy manifest, link graph, Mermaid, audit | Delivered |
 | [2026_06_03_00-05_main_devex-link-graph-audit-sftp.plan.md](2026_06_03_00-05_main_devex-link-graph-audit-sftp.plan.md) | Dev HMR link graph, SFTP checkpoints, smart audit | Delivered |
+| [2026_06_03_19-36_main_backlinks-ux-voir-aussi.plan.md](2026_06_03_19-36_main_backlinks-ux-voir-aussi.plan.md) | Backlinks UX: mobile list, section labels, Voir aussi dedup | Delivered |
 
 ## Related vault plans
 

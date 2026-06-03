@@ -45,6 +45,42 @@ export function resolveBacklinkPanelEntries(rawEntries, currentSlug, exclusions)
 }
 
 /**
+ * Drop inbound links whose source page is already listed in the current page’s Voir aussi section.
+ * @param {BacklinkEntry[]} entries
+ * @param {Set<string>} [voirAussiSlugs]
+ * @returns {BacklinkEntry[]}
+ */
+export function excludeVoirAussiSources(entries, voirAussiSlugs) {
+    if (!voirAussiSlugs?.size) return entries;
+    return entries.filter((entry) => !voirAussiSlugs.has(entry.from));
+}
+
+/**
+ * @param {string} section Vault path prefix (first segment).
+ * @returns {string}
+ */
+export function humanizeSectionSlug(section) {
+    return section
+        .split('-')
+        .map((part) =>
+            /^\d+$/.test(part) ? part : part.charAt(0).toUpperCase() + part.slice(1),
+        )
+        .join(' ');
+}
+
+/**
+ * Section rubric for lexicon grouping. Returns null when no heading should render.
+ * @param {string} section
+ * @param {import('../../config/lexicon.mjs').LexiconConfig} lexicon
+ * @returns {string | null}
+ */
+export function backlinkSectionHeading(section, lexicon) {
+    if (!section) return null;
+    if (isLexiconEnabled(lexicon) && section === lexicon.directory) return null;
+    return humanizeSectionSlug(section);
+}
+
+/**
  * @param {BacklinkEntry[]} entries
  * @param {boolean} isLexiconPage
  * @param {string} [sortLocale]
@@ -75,11 +111,22 @@ export function groupBacklinkEntries(entries, isLexiconPage, sortLocale = 'fr') 
  *   lexicon: import('../../config/lexicon.mjs').LexiconConfig,
  *   exclusions: { excludeSourceSlugs: Set<string>, excludeTargetSlugs: Set<string> },
  *   sortLocale?: string,
+ *   voirAussiSlugs?: Set<string>,
  * }} input
  */
 export function buildBacklinkPanel(input) {
-    const { currentSlug, rawEntries, lexicon, exclusions, sortLocale = 'fr' } = input;
-    const entries = resolveBacklinkPanelEntries(rawEntries, currentSlug, exclusions);
+    const {
+        currentSlug,
+        rawEntries,
+        lexicon,
+        exclusions,
+        sortLocale = 'fr',
+        voirAussiSlugs,
+    } = input;
+    const entries = excludeVoirAussiSources(
+        resolveBacklinkPanelEntries(rawEntries, currentSlug, exclusions),
+        voirAussiSlugs,
+    );
     const isLexiconPage = isLexiconBacklinkPage(
         currentSlug,
         lexicon,

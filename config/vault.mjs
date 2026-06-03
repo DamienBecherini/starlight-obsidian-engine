@@ -5,8 +5,21 @@ import { fileURLToPath } from 'node:url';
 import { loadEnvFile } from './env.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-/** Engine repository root (parent of config/). */
-export const projectRoot = path.resolve(__dirname, '..');
+
+/** Engine repository root (parent of config/). Falls back to cwd when bundled for SSR. */
+function detectProjectRoot() {
+    const fromModule = path.resolve(__dirname, '..');
+    if (fs.existsSync(path.join(fromModule, 'astro.config.mjs'))) {
+        return fromModule;
+    }
+    const cwd = process.cwd();
+    if (fs.existsSync(path.join(cwd, 'astro.config.mjs'))) {
+        return cwd;
+    }
+    return fromModule;
+}
+
+export const projectRoot = detectProjectRoot();
 
 const LINKED_DOCS = path.join(projectRoot, 'src/content/docs');
 
