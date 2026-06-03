@@ -79,6 +79,35 @@ const { toc } = Astro.locals.starlightRoute;
             }
         }
 
+        :global(#starlight__mobile-toc .dropdown .isMobile a) {
+            transition:
+                background-color 0.15s ease,
+                color 0.15s ease,
+                box-shadow 0.15s ease;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            :global(#starlight__mobile-toc .dropdown .isMobile a) {
+                transition: none;
+            }
+        }
+
+        :global(#starlight__mobile-toc .dropdown .isMobile a:hover),
+        :global(#starlight__mobile-toc .dropdown .isMobile a:focus-visible) {
+            color: var(--sl-color-white);
+            box-shadow: inset 3px 0 0 var(--sl-color-accent);
+        }
+
+        :global(:root[data-theme='light'] #starlight__mobile-toc .dropdown .isMobile a:hover),
+        :global(:root[data-theme='light'] #starlight__mobile-toc .dropdown .isMobile a:focus-visible) {
+            background-color: color-mix(in srgb, var(--sl-color-white) 9%, transparent);
+        }
+
+        :global(:root[data-theme='dark'] #starlight__mobile-toc .dropdown .isMobile a:hover),
+        :global(:root[data-theme='dark'] #starlight__mobile-toc .dropdown .isMobile a:focus-visible) {
+            background-color: color-mix(in srgb, var(--sl-color-accent-high) 16%, transparent);
+        }
+
         @media (min-width: 72rem) {
             .right-sidebar-panel > .sl-container,
             .right-sidebar-panel__inner > .sl-container,
