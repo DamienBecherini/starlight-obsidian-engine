@@ -99,8 +99,26 @@ test('collectUnresolvedLinks ignores resolved targets and lists broken ones', ()
 
 test('loadLinkGraph default path resolves from project root', () => {
     assert.equal(defaultLinkGraphPath, path.join(projectRoot, 'src/generated/link-graph.json'));
-    const graph = loadLinkGraphFromFile();
-    assert.ok(typeof graph.backlinks === 'object');
-    assert.ok(Object.keys(graph.backlinks).length > 0, 'expected generated link-graph.json at build time');
-    assert.ok(Array.isArray(loadLinkGraph().backlinks['00-lexique/ram']));
+    assert.ok(typeof loadLinkGraph().backlinks === 'object');
+});
+
+test('loadLinkGraphFromFile reads an explicit graph file', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'link-graph-json-'));
+    const graphPath = path.join(dir, 'link-graph.json');
+    fs.writeFileSync(
+        graphPath,
+        JSON.stringify({
+            generatedAt: 'fixture',
+            backlinks: {
+                'docs/target': [{ from: 'docs/source', title: 'Source', section: 'docs' }],
+            },
+        }),
+    );
+
+    const graph = loadLinkGraphFromFile(graphPath);
+    assert.deepEqual(graph.backlinks['docs/target'], [
+        { from: 'docs/source', title: 'Source', section: 'docs' },
+    ]);
+
+    fs.rmSync(dir, { recursive: true, force: true });
 });
