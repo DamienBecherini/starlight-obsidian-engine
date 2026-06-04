@@ -140,14 +140,15 @@ function resolvePathsFromConfig(config, vaultRoot) {
 }
 
 /**
+ * Generates an Obsidian wikilink for a lexicon entry.
+ * Uses list format (not table) to avoid GFM table pipe conflicts with the alias divider.
  * @param {string} slug
  * @param {string} title
  * @param {string} directory
  * @returns {string}
  */
-export function mdLinkCell(slug, title, directory) {
-    const label = escapeTableCell(title);
-    return `[${label}](/${directory}/${slug}/)`;
+export function mdWikiLink(slug, title, directory) {
+    return `[[${directory}/${slug}|${title.trim()}]]`;
 }
 
 /**
@@ -157,10 +158,10 @@ export function mdLinkCell(slug, title, directory) {
  */
 export function renderIndexMarkdown(entries, config) {
     const directory = config.directory.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
-    const rows = entries.map((e) => {
-        const term = mdLinkCell(e.slug, e.title, directory);
-        const def = escapeTableCell(e.description);
-        return `| ${term} | ${def} |`;
+    const items = entries.map((e) => {
+        const link = mdWikiLink(e.slug, e.title, directory);
+        const def = e.description.replace(/\r?\n/g, ' ').trim();
+        return `- ${link} — ${def}`;
     });
 
     return [
@@ -171,9 +172,7 @@ export function renderIndexMarkdown(entries, config) {
         '',
         config.index.intro,
         '',
-        '| Terme | Définition |',
-        '| :-- | :-- |',
-        ...rows,
+        ...items,
         '',
     ].join('\n');
 }
