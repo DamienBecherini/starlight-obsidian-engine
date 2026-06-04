@@ -25,15 +25,14 @@ describe('audit-links-lib', () => {
     it('parseLexiconBacklogAllowlist reads backlog headings', () => {
         const backlogPath = path.join(vaultRoot, '.agents/vault-maintenance/lexicon-backlog.md');
         const slugs = parseLexiconBacklogAllowlist(backlogPath);
-        assert.ok(slugs.has('00-lexique/nvswitch'));
-        assert.ok(slugs.has('00-lexique/tensor-parallelism'));
+        assert.ok(slugs.has('00-lexique/inference'));
     });
 
     it('parseLinkAuditAllowlistFile reads prefixes and slugs', () => {
         const allowlistPath = path.join(vaultRoot, '.agents/vault-maintenance/link-audit-allowlist.md');
         const { slugs, prefixes } = parseLinkAuditAllowlistFile(allowlistPath);
         assert.deepEqual(prefixes, ['03-stack-logicielle/', '04-blueprints/']);
-        assert.ok(slugs.has('03-stack-logicielle/rag-et-agents-openhuman'));
+        assert.ok(slugs.has('03-stack-logicielle/rag-and-agents'));
     });
 
     it('candidateSlugsForPath applies pageResolver', () => {
@@ -43,7 +42,7 @@ describe('audit-links-lib', () => {
 
     it('isAllowedUnresolvedLink matches prefix allowlist', () => {
         const allowlist = {
-            slugs: new Set(['03-stack-logicielle/rag-et-agents-openhuman']),
+            slugs: new Set(['03-stack-logicielle/rag-and-agents']),
             prefixes: ['03-stack-logicielle/', '04-blueprints/'],
         };
         assert.equal(

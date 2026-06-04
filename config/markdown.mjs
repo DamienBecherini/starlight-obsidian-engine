@@ -4,12 +4,14 @@ import remarkWikiLink from 'remark-wiki-link';
 import remarkMath from 'remark-math';
 import rehypeExternalLinks from 'rehype-external-links';
 import rehypeKatex from 'rehype-katex';
+import { remarkObsidianCallouts } from './remark/obsidian-callouts.mjs';
 
 /** Markdown processor configuration (wiki links, external links, math equations). */
 export const markdown = {
     processor: unified({
         remarkPlugins: [
             remarkMath,
+            remarkObsidianCallouts,
             [
                 remarkWikiLink,
                 {

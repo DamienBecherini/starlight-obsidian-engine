@@ -50,6 +50,10 @@ try {
 
     const indexHtml = path.join(distDir, '00-index', 'index.html');
     assert.ok(fs.existsSync(indexHtml), `Expected ${indexHtml} to exist`);
+    const html = fs.readFileSync(indexHtml, 'utf8');
+    assert.match(html, /class="starlight-aside starlight-aside--note"/);
+    assert.match(html, /Objectif/);
+    assert.match(html, /Smoke callout content\./);
 
     const distPaths = listRelativePaths(distDir);
     const forbidden = distPaths.filter(
