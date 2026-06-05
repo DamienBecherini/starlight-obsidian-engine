@@ -125,8 +125,6 @@ spot-checking.
 npm run link-graph:build
 ```
 
-Implementation plans: [`docs/plans/README.md`](docs/plans/README.md) (start with [backlinks phases 1–5](docs/plans/2026_06_01_14-00_main_link-graph-backlinks-phases-1-5.plan.md)).
-
 ## Scripts
 
 | Command | Purpose |
@@ -138,7 +136,7 @@ Implementation plans: [`docs/plans/README.md`](docs/plans/README.md) (start with
 | `npm run lexicon:index` | Regenerate the vault lexicon index (`lexicon.indexPage`) from entry frontmatter |
 | `npm run lexicon:voir-aussi` | Upgrade `## Voir aussi` wiki links in lexicon entry pages |
 | `npm run link-graph:build` | Regenerate `src/generated/link-graph.json` from vault link graph |
-| `npm run audit:links` | Unresolved wiki/MD links: fails only on unexpected broken links (allowlist: lexicon backlog + `.agents/vault-maintenance/link-audit-allowlist.md`); `--strict` / `--warn-only` |
+| `npm run audit:links` | Report unresolved wiki/MD links; exits 1 only on unexpected failures (allowlist: vault's `.agents/vault-maintenance/link-audit-allowlist.md`); add `--strict` to fail on any unresolved link, `--warn-only` to always exit 0 |
 | `npm run publish` | Git sync (optional) → build → remote upload (see [Publishing](#publishing)) |
 | `npm run deploy` | Build + remote upload (no git) |
 | `npm run upload` | Remote upload only (existing `dist/`, no git, no build) |
@@ -177,6 +175,21 @@ browser-side Mermaid enhancer. CI runs `npm test` and `npm run test:build` on pu
 Back up on GitHub and/or deploy the built site over **FTPS** (FTP over TLS) or **SFTP** (SSH).
 **Deploy credentials live in the vault `.env`** — each vault can target a different host. The engine
 `.env` only needs `VAULT_PATH`.
+
+### Workflow summary
+
+```
+npm run publish
+  ├─ validate deploy config (fail-fast, before git/build)
+  ├─ Vault git  (cancel / commit / skip / push if ahead)
+  ├─ Engine git (same)
+  ├─ npm run build
+  └─ incremental FTPS/SFTP upload (local + remote `.deploy-manifest.json`)
+
+npm run deploy  →  validate config → build → incremental upload (synced manifest)
+npm run upload  →  validate config → incremental upload (dist/ must already exist; run build first)
+npm run audit:links  →  unresolved links (exit 1 only on unexpected; use --strict for zero tolerance)
+```
 
 ### Setup
 
@@ -243,7 +256,7 @@ npm run deploy
 npm run upload
 
 # From the vault (same commands, delegates via ENGINE_PATH)
-cd ../ia-on-prem-vault
+cd ../your-obsidian-vault
 npm run upload
 ```
 
@@ -339,21 +352,6 @@ npm run publish -- --help
 ```
 
 `deploy` and `upload` never touch git.
-
-### Workflow summary
-
-```
-npm run publish
-  ├─ validate deploy config (fail-fast, before git/build)
-  ├─ Vault git  (cancel / commit / skip / push if ahead)
-  ├─ Engine git (same)
-  ├─ npm run build
-  └─ incremental FTPS/SFTP upload (local + remote `.deploy-manifest.json`)
-
-npm run deploy  →  validate config → build → incremental upload (synced manifest)
-npm run upload  →  validate config → incremental upload (dist/ must already exist; run build first)
-npm run audit:links  →  unresolved links (exit 1 only on unexpected; use --strict for zero tolerance)
-```
 
 ### Private site (Basic Auth)
 
@@ -475,6 +473,10 @@ $env:ANALYZE="true"; npm run build; Remove-Item Env:\ANALYZE
 
 - **Mermaid** — `src/components/MermaidEnhancer.astro` + `src/styles/mermaid.css` (pan/zoom/fullscreen) on
   top of `astro-mermaid`. See the bundled debugging skill in `.agents/skills/astro-mermaid/`.
+- **Backlinks** — `src/components/PageBacklinks.astro` injected into `src/components/PageSidebar.astro`
+  (Starlight `PageSidebar` override). Reads `src/generated/link-graph.json` built at `predev`/`prebuild`.
+- **Editorial badge** — `src/components/VerifiedBadge.astro` renders `last_modified`, `last_verified`,
+  `verified_by`, `verified_hitl`, and `prices_valid_as_of` frontmatter fields at the bottom of each page.
 - **Math (LaTeX)** — `remark-math` + `rehype-katex` (`config/markdown.mjs`) for Obsidian `$...$` /
   `$$...$$` syntax, rendered at build time (no client JS). Styles: `katex/dist/katex.min.css` +
   `src/styles/katex-starlight.css`.
@@ -484,11 +486,12 @@ $env:ANALYZE="true"; npm run build; Remove-Item Env:\ANALYZE
 ## Project layout
 
 ```
-config/          engine config (vault resolution, site config loader, integrations, markdown, Starlight)
-scripts/         vault linking, pre-dev/build checks, publish (SFTP)
-src/components/  Head override + MermaidEnhancer
-src/styles/      Mermaid + KaTeX Starlight overrides
-src/content.config.ts   content collection (docsLoader on the junction, glob otherwise)
+config/               engine config (vault resolution, site config loader, integrations, markdown, Starlight)
+scripts/              vault linking, pre-dev/build checks, publish (FTPS/SFTP)
+src/components/       Head, Footer, MermaidEnhancer, PageSidebar, PageBacklinks, VerifiedBadge overrides
+src/styles/           Mermaid, KaTeX, backlinks, footnotes, external-links Starlight overrides
+src/generated/        link-graph.json (gitignored; rebuilt at predev/prebuild)
+src/content.config.ts content collection (docsLoader on the junction, glob otherwise)
 ```
 
 ## Contributing
