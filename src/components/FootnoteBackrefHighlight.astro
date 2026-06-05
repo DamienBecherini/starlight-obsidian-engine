@@ -23,6 +23,13 @@
         return null;
     }
 
+    function findFootnoteItem(hash: string): HTMLElement | null {
+        if (!hash) return null;
+        const id = decodeURIComponent(hash.replace(/^#/, ''));
+        const el = document.getElementById(id);
+        return el instanceof HTMLElement ? el : null;
+    }
+
     function scheduleCleanup(block: Element, ref: HTMLAnchorElement): void {
         const previous = cleanupTimers.get(block);
         if (previous !== undefined) window.clearTimeout(previous);
@@ -38,11 +45,13 @@
     }
 
     function scrollRefIntoView(ref: HTMLAnchorElement): void {
-        const rect = ref.getBoundingClientRect();
-        const styles = getComputedStyle(ref);
-        const topMargin = Number.parseFloat(styles.scrollMarginTop) || 80;
-        const top = window.scrollY + rect.top - topMargin;
-        window.scrollTo({ top, behavior: 'smooth' });
+        scrollElementIntoView(ref);
+    }
+
+    function scrollElementIntoView(el: HTMLElement): void {
+        const rect = el.getBoundingClientRect();
+        const centeredTop = window.scrollY + rect.top + rect.height / 2 - window.innerHeight / 2;
+        window.scrollTo({ top: Math.max(0, centeredTop), behavior: 'smooth' });
     }
 
     /** scrollIntoView also scrolls overflow-x wrappers (Starlight tables) — reset them. */
@@ -75,6 +84,24 @@
         scrollRefIntoView(ref);
     }
 
+    function highlightFootnoteItem(item: HTMLElement): void {
+        item.classList.remove(BLOCK_HIGHLIGHT_CLASS);
+        void item.getBoundingClientRect();
+        item.classList.add(BLOCK_HIGHLIGHT_CLASS);
+
+        const previous = cleanupTimers.get(item);
+        if (previous !== undefined) window.clearTimeout(previous);
+
+        const cleanup = (): void => {
+            item.classList.remove(BLOCK_HIGHLIGHT_CLASS);
+            cleanupTimers.delete(item);
+        };
+        item.addEventListener('animationend', cleanup, { once: true });
+        cleanupTimers.set(item, window.setTimeout(cleanup, FLASH_MS + 100));
+
+        scrollElementIntoView(item);
+    }
+
     function flashFromHash(): void {
         const ref = findFootnoteRef(location.hash);
         if (ref) highlightBlock(ref);
@@ -85,19 +112,31 @@
         if (!(target instanceof Element)) return;
 
         const backref = target.closest('[data-footnote-backref], .footnote-backref');
-        if (!(backref instanceof HTMLAnchorElement)) return;
-
-        const href = backref.getAttribute('href');
-        if (!href?.startsWith('#')) return;
-
-        const ref = findFootnoteRef(href);
-        if (!ref) return;
-
-        event.preventDefault();
-        if (location.hash !== href) {
-            history.pushState(null, '', href);
+        if (backref instanceof HTMLAnchorElement) {
+            const href = backref.getAttribute('href');
+            if (href?.startsWith('#')) {
+                const ref = findFootnoteRef(href);
+                if (ref) {
+                    event.preventDefault();
+                    if (location.hash !== href) history.pushState(null, '', href);
+                    highlightBlock(ref);
+                    return;
+                }
+            }
         }
-        highlightBlock(ref);
+
+        const refLink = target.closest('[data-footnote-ref]');
+        if (refLink instanceof HTMLAnchorElement) {
+            const href = refLink.getAttribute('href');
+            if (href?.startsWith('#')) {
+                const item = findFootnoteItem(href);
+                if (item) {
+                    event.preventDefault();
+                    if (location.hash !== href) history.pushState(null, '', href);
+                    highlightFootnoteItem(item);
+                }
+            }
+        }
     });
 
     window.addEventListener('hashchange', flashFromHash);
