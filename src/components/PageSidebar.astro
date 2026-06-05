@@ -30,6 +30,45 @@ const { toc } = Astro.locals.starlightRoute;
     )
 }
 
+<script>
+    function getHeadingTarget(href: string): HTMLElement | null {
+        if (!href?.startsWith('#')) return null;
+        const id = decodeURIComponent(href.slice(1));
+        const el = document.getElementById(id);
+        return el instanceof HTMLElement ? el : null;
+    }
+
+    function scrollHeadingIntoView(el: HTMLElement): void {
+        const rect = el.getBoundingClientRect();
+        const styles = getComputedStyle(el);
+        const topMargin = Number.parseFloat(styles.scrollMarginTop) || 80;
+        const top = window.scrollY + rect.top - topMargin;
+        window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+    }
+
+    function attachTocHandlers(): void {
+        const tocPanel = document.querySelector('.page-sidebar-toc');
+        if (!tocPanel) return;
+
+        tocPanel.addEventListener('click', (event) => {
+            const target = event.target;
+            if (!(target instanceof Element)) return;
+            const link = target.closest('a[href^="#"]');
+            if (!(link instanceof HTMLAnchorElement)) return;
+            const href = link.getAttribute('href') ?? '';
+            const heading = getHeadingTarget(href);
+            if (!heading) return;
+
+            event.preventDefault();
+            if (location.hash !== href) history.pushState(null, '', href);
+            scrollHeadingIntoView(heading);
+        });
+    }
+
+    document.addEventListener('astro:page-load', attachTocHandlers);
+    attachTocHandlers();
+</script>
+
 <style>
     @layer starlight.core {
         .right-sidebar-panel {
