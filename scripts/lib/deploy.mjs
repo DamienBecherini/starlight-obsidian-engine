@@ -1011,10 +1011,15 @@ async function uploadSelectedFilesFtps(
         if (!group) continue;
 
         if (parentIdx > 0) {
-            session.client.trackProgress();
-            await refreshFtpsSession(session, config, remoteBase);
-            attachProgress();
-            filesSinceReconnect = 0;
+            if (filesSinceReconnect >= FTPS_MAX_FILES_PER_SESSION) {
+                session.client.trackProgress();
+                await refreshFtpsSession(session, config, remoteBase);
+                attachProgress();
+                filesSinceReconnect = 0;
+            } else {
+                // Reset CWD without a full TLS reconnect.
+                await session.client.cd(remoteBase === '/' ? '/' : remoteBase);
+            }
         }
 
         if (parentKey === '.') {
@@ -1030,6 +1035,8 @@ async function uploadSelectedFilesFtps(
                         }
                         const name = path.posix.basename(item.rel);
                         const fileStartBytes = bytesDone;
+                        // Show filename before transfer starts so bar updates during TLS handshake.
+                        progress.onBytes(bytesDone, item.rel);
                         attachProgress(fileStartBytes);
                         await session.client.uploadFrom(item.abs, name);
                         session.client.trackProgress();
@@ -1065,13 +1072,18 @@ async function uploadSelectedFilesFtps(
             let done = false;
             for (let attempt = 0; attempt < 4 && !done; attempt++) {
                 try {
-                    if (filesSinceReconnect >= FTPS_MAX_FILES_PER_SESSION || b > 0) {
+                    if (filesSinceReconnect >= FTPS_MAX_FILES_PER_SESSION) {
                         session.client.trackProgress();
                         await refreshFtpsSession(session, config, remoteBase);
                         attachProgress();
                         filesSinceReconnect = 0;
+                    } else if (b > 0) {
+                        // Subsequent batch of same dir: reset CWD without TLS reconnect.
+                        await session.client.cd(remoteBase === '/' ? '/' : remoteBase);
                     }
                     const batchStartBytes = bytesDone;
+                    // Show first filename before transfer starts so bar updates during TLS handshake.
+                    progress.onBytes(bytesDone, batchItems[0]?.rel ?? group.remoteDir);
                     attachProgress(batchStartBytes);
                     await ftpsUploadFromDirWithRetry(
                         session,
@@ -1092,7 +1104,9 @@ async function uploadSelectedFilesFtps(
                     transferState.bytesOverall = bytesDone;
                     progress.onBytes(bytesDone, batchItems.at(-1)?.rel ?? group.remoteDir);
                     saveManifest(manifest, vaultRoot);
-                    if (group.remoteDir === '_astro' || filesSinceReconnect >= FTPS_MAX_FILES_PER_SESSION) {
+                    // Reset CWD after uploadFromDir leaves us inside the target directory.
+                    await session.client.cd(remoteBase === '/' ? '/' : remoteBase);
+                    if (filesSinceReconnect >= FTPS_MAX_FILES_PER_SESSION) {
                         session.client.trackProgress();
                         await refreshFtpsSession(session, config, remoteBase);
                         attachProgress();
