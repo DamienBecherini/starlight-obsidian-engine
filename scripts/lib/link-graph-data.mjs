@@ -2,19 +2,19 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { projectRoot } from '../../config/vault.mjs';
-import linkGraphDocument from '../../src/generated/link-graph.json' with { type: 'json' };
 
 /** @typedef {import('./link-graph.mjs').LinkGraphDocument} LinkGraphDocument */
 
-/** Path used when reading from disk (tests, scripts). */
+/** Path used when reading from disk (tests, scripts, Astro pages). */
 export const defaultLinkGraphPath = path.join(projectRoot, 'src/generated/link-graph.json');
 
 /**
- * Runtime loader for Astro pages — bundled JSON import (SSR-safe).
+ * Runtime loader for Astro pages — reads generated JSON from disk (gitignored artefact).
+ * Tolerates a missing file (empty graph) until predev/prebuild regenerates it.
  * @returns {LinkGraphDocument}
  */
 export function loadLinkGraph() {
-    return /** @type {LinkGraphDocument} */ (linkGraphDocument);
+    return loadLinkGraphFromFile(defaultLinkGraphPath);
 }
 
 /**

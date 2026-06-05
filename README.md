@@ -45,6 +45,8 @@ Content **does not live** in the engine: it is resolved at build time from `VAUL
 **required** so Vite can resolve `@astrojs/starlight/components` imports inside the vault's `.mdx` files
 (`preserveSymlinks` in `astro.config.mjs`).
 
+**Requires Node.js 22+** (same version as CI). Uses `node:test` (built-in test runner) and `parseEnv` from `node:util`.
+
 ## Quick start
 
 ```bash
@@ -354,6 +356,8 @@ npm run publish -- --help
 `deploy` and `upload` never touch git.
 
 ### Private site (Basic Auth)
+
+> **Apache only.** This feature generates `.htaccess` + `.htpasswd` files. It works on Apache-based shared hosting (o2switch, OVH mutualisé, cPanel, etc.). It has **no effect** on Nginx, Caddy, Vercel, Netlify, AWS S3, or any host that does not process `.htaccess`.
 
 Make the deployed site private with Apache Basic Auth. The engine generates a `.htpasswd`
 (Apache `$apr1$` MD5 hash, salted) and a `.htaccess`, then uploads both to the site root
