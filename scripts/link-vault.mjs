@@ -1,15 +1,15 @@
 // @ts-check
 /**
- * Creates a junction (Windows) or a symlink (Unix): src/content/docs → VAULT_PATH.
- * The vault path is defined by VAULT_PATH (.env or environment variable).
+ * Creates a junction (Windows) or a symlink (Unix): src/content/docs → active vault.
+ * Target comes from resolveVaultPath() (VAULT_PATH, --vault flag, or registry).
  * Usage: npm run link:vault
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { projectRoot, envVaultPath } from '../config/vault.mjs';
+import { projectRoot, resolveVaultPath } from '../config/vault.mjs';
 
 const linkPath = path.join(projectRoot, 'src/content/docs');
-const targetPath = envVaultPath();
+const targetPath = resolveVaultPath();
 
 if (!targetPath) {
     console.error('❌ VAULT_PATH is not defined.');
@@ -24,11 +24,20 @@ if (!fs.existsSync(targetPath)) {
 }
 
 if (fs.existsSync(linkPath)) {
+    try {
+        if (fs.realpathSync(linkPath) === fs.realpathSync(targetPath)) {
+            console.log(`✅ Link already points to active vault: ${targetPath}`);
+            process.exit(0);
+        }
+    } catch {
+        /* relink below */
+    }
+
     const stat = fs.lstatSync(linkPath);
     if (stat.isSymbolicLink()) {
         fs.unlinkSync(linkPath);
         console.log('ℹ️ Old symlink removed.');
-    } else {
+    } else if (stat.isDirectory()) {
         const entries = fs.readdirSync(linkPath);
         const onlyPlaceholders = entries.every((e) =>
             ['.gitkeep', 'README.md', 'site.config.json'].includes(e),
@@ -39,6 +48,8 @@ if (fs.existsSync(linkPath)) {
             );
             process.exit(1);
         }
+        fs.rmSync(linkPath, { recursive: true, force: true });
+    } else {
         fs.rmSync(linkPath, { recursive: true, force: true });
     }
 }

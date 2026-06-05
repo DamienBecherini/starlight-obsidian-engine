@@ -1,14 +1,12 @@
 // @ts-check
 import starlight from '@astrojs/starlight';
 import { loadSiteConfig } from '../site.mjs';
-import { resolveVaultPath } from '../vault.mjs';
 
 const site = loadSiteConfig();
 
 /** Starlight integration — identity and navigation loaded from the vault (site.config.json). */
 export const starlightIntegration = starlight({
     title: site.title,
-    docsDir: resolveVaultPath(),
     customCss: [
         './src/styles/mermaid.css',
         'katex/dist/katex.min.css',

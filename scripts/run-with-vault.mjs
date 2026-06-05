@@ -59,7 +59,10 @@ if (!raw) {
 
 const abs = path.isAbsolute(raw) ? raw : path.resolve(projectRoot, raw);
 
+const outDir = `dist/${vaultName}`;
+
 console.log(`🗂️  Vault: ${vaultName} → ${abs}`);
+console.log(`📦 Output: ${outDir}`);
 console.log(`▶  npm run ${npmScript}${rest.length ? ' ' + rest.join(' ') : ''}\n`);
 
 const result = spawnSync('npm', ['run', npmScript, ...rest], {
@@ -70,6 +73,8 @@ const result = spawnSync('npm', ['run', npmScript, ...rest], {
         ...process.env,
         VAULT_PATH: abs,
         FORCE_VAULT_PATH: '1',
+        VAULT_SLUG: vaultName,
+        ASTRO_OUT_DIR: outDir,
     },
 });
 

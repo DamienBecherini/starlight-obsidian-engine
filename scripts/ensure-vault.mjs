@@ -1,12 +1,12 @@
 // @ts-check
 /**
  * Checks that the vault is reachable before dev/build.
- * With docsDir set in starlight config, no junction is required — this script
- * only validates that the vault path exists and contains markdown files.
- * To create an optional junction for IDE navigation: npm run link:vault
+ * Docs are loaded from the vault via content.config.ts (glob loader).
+ * MDX splash paths are bridged by config/vite/vault-docs-redirect.mjs — no junction.
  */
 import fs from 'node:fs';
 import { resolveVaultPath } from '../config/vault.mjs';
+import { stageVaultSplashMdx } from '../config/stage-splash-mdx.mjs';
 
 const vaultPath = resolveVaultPath();
 
@@ -29,3 +29,5 @@ const hasMd = fs
 if (!hasMd) {
     console.warn(`⚠️ No .md/.mdx file at the root of ${vaultPath}`);
 }
+
+stageVaultSplashMdx();

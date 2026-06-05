@@ -60,8 +60,63 @@ function resolveVaultFromArg() {
     const abs = path.isAbsolute(raw) ? raw : path.resolve(projectRoot, raw);
     process.env.VAULT_PATH = abs;
     process.env.FORCE_VAULT_PATH = '1';
+    process.env.VAULT_SLUG = name;
 }
 resolveVaultFromArg();
+
+/**
+ * Short vault name for dist/ output and logging.
+ * Priority: VAULT_SLUG env → registry reverse-lookup → folder basename (strip trailing -vault).
+ * @returns {string}
+ */
+export function resolveVaultSlug() {
+    const slug = process.env.VAULT_SLUG?.trim();
+    if (slug) return slug;
+
+    const vaultPath = resolveVaultGitRoot();
+    for (const [key, value] of Object.entries(process.env)) {
+        if (!key.startsWith('VAULT_') || key === 'VAULT_PATH' || !value?.trim()) continue;
+        const raw = value.trim();
+        const abs = path.isAbsolute(raw) ? raw : path.resolve(projectRoot, raw);
+        let resolved = abs;
+        try {
+            resolved = fs.realpathSync(abs);
+        } catch {
+            /* keep abs */
+        }
+        let candidate = vaultPath;
+        try {
+            candidate = fs.realpathSync(vaultPath);
+        } catch {
+            /* keep vaultPath */
+        }
+        if (path.normalize(resolved) === path.normalize(candidate)) {
+            return key.replace(/^VAULT_/, '');
+        }
+    }
+
+    const base = path.basename(vaultPath);
+    return base.replace(/-vault$/i, '') || base;
+}
+
+/**
+ * Astro outDir value (relative to engine root unless absolute).
+ * @returns {string}
+ */
+export function resolveAstroOutDir() {
+    const explicit = process.env.ASTRO_OUT_DIR?.trim();
+    if (explicit) return explicit;
+    return path.join('dist', resolveVaultSlug()).split(path.sep).join('/');
+}
+
+/**
+ * Absolute path to the build output directory for the active vault.
+ * @returns {string}
+ */
+export function resolveDistDir() {
+    const outDir = resolveAstroOutDir();
+    return path.isAbsolute(outDir) ? outDir : path.resolve(projectRoot, outDir);
+}
 
 /**
  * Absolute path defined by VAULT_PATH (.env or environment variable), or null.
