@@ -41,6 +41,7 @@ const editorialSchema = z.object({
 	last_verified: z.string().optional(),
 	verified_by: z.string().optional(),
 	verified_hitl: z.string().optional(),
+	verified_hitl_url: z.string().url().optional(),
 	prices_valid_as_of: z.string().optional(),
 });
 
