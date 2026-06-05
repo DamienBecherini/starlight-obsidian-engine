@@ -1,0 +1,43 @@
+---
+description: Astro content store cache gotcha for remark/rehype plugin changes
+alwaysApply: true
+---
+
+# Astro Content Store Cache
+
+## Location
+
+`node_modules/.astro/data-store.json`
+
+## What it caches
+
+Astro's Content Layer API caches **rendered HTML bodies** for every markdown entry in the content store. This includes the output of the full remark/rehype pipeline (wiki-links, callouts, math, etc.).
+
+## The gotcha
+
+When you modify a remark or rehype plugin's **configuration** (e.g. `hrefTemplate`, `pageResolver`, options passed to any plugin), Astro does **not** detect this as a cache invalidation trigger — it only detects structural config changes like added/removed plugins or changed frontmatter.
+
+Result: the next `npm run build` / `npm run deploy` reuses the cached rendered HTML. The plugin change has **no effect** in build, while `npm run dev` works correctly (it re-renders on demand).
+
+## Fix
+
+Delete the cache before building whenever you change markdown plugin options:
+
+```powershell
+Remove-Item -Force node_modules\.astro\data-store.json
+npm run deploy
+```
+
+Or on Unix:
+
+```bash
+rm node_modules/.astro/data-store.json
+npm run deploy
+```
+
+## When this applies
+
+- Changing `hrefTemplate` or `pageResolver` in `remark-wiki-link` (`config/markdown.mjs`)
+- Changing options passed to any remark/rehype plugin
+- Adding or removing remark/rehype plugins (Astro usually catches this, but deleting the cache is safer)
+- Any situation where dev shows the correct output but the deployed site does not
