@@ -20,10 +20,23 @@ const defaultLocales = {
 };
 
 /**
+ * @typedef {Object} EditorialHitl
+ * @property {string} name Author display name.
+ * @property {string} [url] Author profile URL (used as article:author).
+ */
+
+/**
+ * @typedef {Object} Editorial
+ * @property {EditorialHitl} [hitl]
+ * @property {string} [defaultAgent]
+ */
+
+/**
  * @typedef {Object} SiteConfig
  * @property {string} title
  * @property {string} [url] Public canonical URL (Astro `site`, sitemap, absolute links).
  * @property {string} [ogImage] Absolute URL for the og:image meta tag. If omitted, no og:image tag is injected.
+ * @property {Editorial} [editorial]
  * @property {string} [defaultLocale]
  * @property {import('@astrojs/starlight/types').StarlightUserConfig['locales']} [locales]
  * @property {import('@astrojs/starlight/types').StarlightUserConfig['sidebar']} [sidebar]
@@ -32,7 +45,7 @@ const defaultLocales = {
 
 /**
  * Loads site.config.json from the vault root.
- * @returns {Required<Pick<SiteConfig, 'title' | 'defaultLocale' | 'locales' | 'sidebar'>> & Pick<SiteConfig, 'url' | 'ogImage' | 'social'>}
+ * @returns {Required<Pick<SiteConfig, 'title' | 'defaultLocale' | 'locales' | 'sidebar'>> & Pick<SiteConfig, 'url' | 'ogImage' | 'editorial' | 'social'>}
  */
 export function loadSiteConfig() {
     const vaultPath = resolveVaultPath();
@@ -60,6 +73,7 @@ export function loadSiteConfig() {
             title: parsed.title ?? 'Obsidian Vault Site',
             url: parsed.url?.replace(/\/+$/, '') || undefined,
             ogImage: parsed.ogImage || undefined,
+            editorial: parsed.editorial || undefined,
             defaultLocale: parsed.defaultLocale ?? 'root',
             locales: parsed.locales ?? defaultLocales,
             sidebar: parsed.sidebar ?? defaultSidebar,

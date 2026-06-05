@@ -7,11 +7,17 @@ import { loadSiteConfig } from '../../config/site.mjs';
 
 const site = loadSiteConfig();
 const ogImage = site.ogImage ?? '';
+const articleAuthor = site.editorial?.hitl?.url ?? site.editorial?.hitl?.name ?? '';
+// Use the build date as published_time so LinkedIn shows a date.
+// Individual pages could override this in the future via frontmatter.
+const publishedTime = new Date().toISOString();
 ---
 
 <Default><slot /></Default>
 {ogImage && <meta property="og:image" content={ogImage} />}
 {ogImage && <meta name="twitter:card" content="summary_large_image" />}
 {ogImage && <meta name="twitter:image" content={ogImage} />}
+{articleAuthor && <meta property="article:author" content={articleAuthor} />}
+<meta property="article:published_time" content={publishedTime} />
 <MermaidEnhancer />
 <FootnoteBackrefHighlight />
