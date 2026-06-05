@@ -6,6 +6,27 @@
  * Renders only when at least one field is present. Hidden on print.
  */
 const route = Astro.locals.starlightRoute;
+const locale = route?.entryMeta?.locale ?? route?.locale ?? 'root';
+const isEn = locale === 'en';
+
+const labels = isEn
+    ? {
+          modified: 'Modified',
+          verified: 'Verified',
+          hitl: 'HITL',
+          agent: 'Agent',
+          pricesValid: 'Prices valid as of',
+          aria: 'Editorial metadata',
+      }
+    : {
+          modified: 'Modifié',
+          verified: 'Vérifié',
+          hitl: 'HITL',
+          agent: 'Agent',
+          pricesValid: 'Prix valides en',
+          aria: 'Métadonnées éditoriales',
+      };
+
 const data = route?.entry?.data as unknown as {
     last_modified?: string;
     last_verified?: string;
@@ -26,26 +47,26 @@ const hasAny = lastModified || lastVerified || verifiedBy || verifiedHitl;
 ---
 
 {hasAny && (
-  <aside class="verified-badge print:hidden" aria-label="Editorial metadata">
+  <aside class="verified-badge print:hidden" aria-label={labels.aria}>
     <div class="verified-badge__inner">
       {lastModified && (
         <span class="verified-badge__item">
           <span class="verified-badge__icon" aria-hidden="true">✏️</span>
-          <span class="verified-badge__label">Modifié</span>
+          <span class="verified-badge__label">{labels.modified}</span>
           <time datetime={lastModified}>{lastModified}</time>
         </span>
       )}
       {lastVerified && (
         <span class="verified-badge__item">
           <span class="verified-badge__icon" aria-hidden="true">✅</span>
-          <span class="verified-badge__label">Vérifié</span>
+          <span class="verified-badge__label">{labels.verified}</span>
           <time datetime={lastVerified}>{lastVerified}</time>
         </span>
       )}
       {verifiedHitl && (
         <span class="verified-badge__item">
           <span class="verified-badge__icon" aria-hidden="true">👤</span>
-          <span class="verified-badge__label">HITL</span>
+          <span class="verified-badge__label">{labels.hitl}</span>
           {verifiedHitlUrl ? (
             <a href={verifiedHitlUrl} rel="noopener noreferrer" target="_blank">{verifiedHitl}</a>
           ) : (
@@ -54,16 +75,16 @@ const hasAny = lastModified || lastVerified || verifiedBy || verifiedHitl;
         </span>
       )}
       {verifiedBy && (
-        <span class="verified-badge__item verified-badge__item--agent" title={`Agent: ${verifiedBy}`}>
+        <span class="verified-badge__item verified-badge__item--agent" title={`${labels.agent}: ${verifiedBy}`}>
           <span class="verified-badge__icon" aria-hidden="true">🤖</span>
-          <span class="verified-badge__label">Agent</span>
+          <span class="verified-badge__label">{labels.agent}</span>
           <span>{verifiedBy}</span>
         </span>
       )}
       {pricesValidAs && (
         <span class="verified-badge__item verified-badge__item--prices">
           <span class="verified-badge__icon" aria-hidden="true">💰</span>
-          <span class="verified-badge__label">Prix valides en</span>
+          <span class="verified-badge__label">{labels.pricesValid}</span>
           <span>{pricesValidAs}</span>
         </span>
       )}
