@@ -6,12 +6,40 @@ import { getLexiconDisplayExclusions } from '../../scripts/lib/link-graph.mjs';
 import { seeAlsoSlugSet } from '../../scripts/lib/see-also-links.mjs';
 import { isLexiconEnabled, loadLexiconConfig } from '../../config/lexicon.mjs';
 import { resolveVaultGitRoot } from '../../config/vault.mjs';
+import { loadSiteConfig } from '../../config/site.mjs';
 import { siteHrefFromVaultSlug, vaultSlugFromRouteEntry } from '../lib/backlinks-routing.mjs';
 import { backlinkSectionHeading, buildBacklinkPanel } from '../lib/backlinks-panel.mjs';
 
 const route = Astro.locals.starlightRoute;
 const vaultRoot = resolveVaultGitRoot();
 const currentSlug = vaultSlugFromRouteEntry(route.entry);
+const locale = route.entryMeta.locale ?? route.locale;
+
+// Strip locale prefix (e.g. 'en/') so EN pages resolve to the same graph entries as their FR equivalents.
+const localePrefix = locale ? `${locale}/` : '';
+const graphSlug =
+    localePrefix && currentSlug?.startsWith(localePrefix)
+        ? currentSlug.slice(localePrefix.length)
+        : currentSlug;
+
+// Derive non-root locale segments (e.g. ['en']) to filter backlinks by locale.
+const siteConf = loadSiteConfig();
+const nonRootLocales = Object.keys(siteConf.locales ?? {}).filter((k) => k !== 'root');
+
+/** Returns the locale segment of a source slug, or null for root-locale slugs. */
+function getFromSlugLocale(fromSlug: string): string | null {
+    for (const loc of nonRootLocales) {
+        if (fromSlug.startsWith(`${loc}/`)) return loc;
+    }
+    return null;
+}
+
+/** Strips the locale prefix from a source slug so URL generation is locale-neutral. */
+function normalizeFromSlug(fromSlug: string): string {
+    const loc = getFromSlugLocale(fromSlug);
+    return loc ? fromSlug.slice(`${loc}/`.length) : fromSlug;
+}
+
 const graph = loadLinkGraph();
 const exclusions = getLexiconDisplayExclusions(vaultRoot);
 const lexicon = loadLexiconConfig(vaultRoot);
@@ -26,11 +54,44 @@ function loadSeeAlsoSlugs(slug: string): Set<string> {
     }
 }
 
-const seeAlsoSlugs = currentSlug ? loadSeeAlsoSlugs(currentSlug) : new Set<string>();
+const seeAlsoSlugs = graphSlug ? loadSeeAlsoSlugs(graphSlug) : new Set<string>();
+
+const allRawEntries = graphSlug ? (graph.backlinks[graphSlug] ?? []) : [];
+
+/**
+ * Keep only entries whose source locale matches the current page locale.
+ * For non-root locales, falls back to root-locale sources when no same-locale entries exist.
+ * Deduplicates by normalized slug and normalizes `from` for locale-neutral URL generation.
+ */
+function filterAndNormalizeEntries<T extends { from: string }>(entries: T[]): T[] {
+    let base: T[];
+    if (!locale) {
+        // Root locale (FR): only root-locale sources (no locale prefix).
+        base = entries.filter((e) => getFromSlugLocale(e.from) === null);
+    } else {
+        // Non-root locale (e.g. EN): prefer same-locale sources; fall back to root sources.
+        const sameLocale = entries.filter((e) => getFromSlugLocale(e.from) === locale);
+        base = sameLocale.length > 0
+            ? sameLocale
+            : entries.filter((e) => getFromSlugLocale(e.from) === null);
+    }
+    // Deduplicate by normalized slug, then normalize `from` for URL generation.
+    const seen = new Set<string>();
+    return base
+        .filter((e) => {
+            const n = normalizeFromSlug(e.from);
+            if (seen.has(n)) return false;
+            seen.add(n);
+            return true;
+        })
+        .map((e) => ({ ...e, from: normalizeFromSlug(e.from) } as T));
+}
+
+const rawEntries = filterAndNormalizeEntries(allRawEntries);
 
 const panel = buildBacklinkPanel({
-    currentSlug,
-    rawEntries: currentSlug ? (graph.backlinks[currentSlug] ?? []) : [],
+    currentSlug: graphSlug,
+    rawEntries,
     lexicon,
     exclusions,
     sortLocale: isLexiconEnabled(lexicon) ? lexicon.sortLocale : 'fr',
@@ -38,7 +99,6 @@ const panel = buildBacklinkPanel({
 });
 
 const { entries, isLexiconPage, heading, grouped: sortedGroups, shouldRender } = panel;
-const locale = route.entryMeta.locale ?? route.locale;
 
 interface Props {
     /** `sidebar` = right column (desktop). `mobile` = below page body on small screens. */

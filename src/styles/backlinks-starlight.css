@@ -18,6 +18,13 @@
         }
     }
 
+    /* Ensure the mobile block never shows at desktop width (belt + suspenders over lg:sl-hidden). */
+    @media (min-width: 72rem) {
+        .page-mobile-backlinks {
+            display: none !important;
+        }
+    }
+
     /*
      * Keep the main column at Starlight’s intended width when the right sidebar
      * (TOC + backlinks) is present — avoid flex-shrink squeezing .main-pane.
