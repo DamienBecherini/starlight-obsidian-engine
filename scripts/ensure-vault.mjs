@@ -1,36 +1,19 @@
 // @ts-check
 /**
  * Checks that the vault is reachable before dev/build.
- * Creates the junction if the sibling vault exists but is not linked yet.
+ * With docsDir set in starlight config, no junction is required — this script
+ * only validates that the vault path exists and contains markdown files.
+ * To create an optional junction for IDE navigation: npm run link:vault
  */
 import fs from 'node:fs';
-import path from 'node:path';
-import { execSync } from 'node:child_process';
-import { projectRoot, resolveVaultPath, envVaultPath, forceVaultPathFromEnv } from '../config/vault.mjs';
-const linkPath = path.join(projectRoot, 'src/content/docs');
-const targetVault = envVaultPath();
+import { resolveVaultPath } from '../config/vault.mjs';
 
 const vaultPath = resolveVaultPath();
 
 if (!fs.existsSync(vaultPath)) {
     console.warn(`⚠️ Vault not found: ${vaultPath}`);
-    console.warn('   Set VAULT_PATH in .env or run: npm run link:vault');
+    console.warn('   Set VAULT_PATH in engine .env, or use --vault=<name> / npm run dev:<name>');
     process.exit(0);
-}
-
-const needsLink =
-    !forceVaultPathFromEnv() &&
-    !!targetVault &&
-    fs.existsSync(targetVault) &&
-    !fs.existsSync(linkPath) &&
-    path.normalize(vaultPath) !== path.normalize(linkPath);
-
-if (needsLink) {
-    try {
-        execSync('node scripts/link-vault.mjs', { cwd: projectRoot, stdio: 'inherit' });
-    } catch {
-        console.warn('⚠️ Automatic vault linking failed. Run: npm run link:vault');
-    }
 }
 
 const hasMd = fs

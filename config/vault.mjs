@@ -26,6 +26,44 @@ const LINKED_DOCS = path.join(projectRoot, 'src/content/docs');
 loadEnvFile(projectRoot);
 
 /**
+ * Reads --vault=<name> (or --vault <name>) from process.argv at module load time.
+ * Looks up VAULT_<name> in the engine .env registry, then overwrites VAULT_PATH and
+ * sets FORCE_VAULT_PATH=1 so every child process (including `npm run build`) inherits
+ * the correct vault without any file mutation.
+ * The flag is stripped from argv before downstream arg parsers run.
+ */
+function resolveVaultFromArg() {
+    let name = null;
+    const eqIdx = process.argv.findIndex((a) => a.startsWith('--vault='));
+    if (eqIdx !== -1) {
+        name = process.argv[eqIdx].split('=')[1];
+        process.argv.splice(eqIdx, 1);
+    } else {
+        const spaceIdx = process.argv.indexOf('--vault');
+        if (spaceIdx !== -1 && process.argv[spaceIdx + 1]) {
+            name = process.argv[spaceIdx + 1];
+            process.argv.splice(spaceIdx, 2);
+        }
+    }
+    if (!name) return;
+
+    const key = `VAULT_${name}`;
+    const raw = process.env[key];
+    if (!raw) {
+        const registered = Object.keys(process.env)
+            .filter((k) => k.startsWith('VAULT_') && k !== 'VAULT_PATH')
+            .map((k) => k.replace(/^VAULT_/, ''));
+        console.error(`❌ Unknown vault "${name}". Add ${key}=<path> to engine .env`);
+        if (registered.length) console.error(`   Registered vaults: ${registered.join(', ')}`);
+        process.exit(1);
+    }
+    const abs = path.isAbsolute(raw) ? raw : path.resolve(projectRoot, raw);
+    process.env.VAULT_PATH = abs;
+    process.env.FORCE_VAULT_PATH = '1';
+}
+resolveVaultFromArg();
+
+/**
  * Absolute path defined by VAULT_PATH (.env or environment variable), or null.
  * @returns {string | null}
  */
