@@ -1,0 +1,110 @@
+---
+/**
+ * VerifiedBadge — displays editorial metadata from vault frontmatter:
+ *   last_modified, last_verified, verified_by, verified_hitl
+ *
+ * Renders only when at least one field is present. Hidden on print.
+ */
+const route = Astro.locals.starlightRoute;
+const data = route?.entry?.data as unknown as {
+    last_modified?: string;
+    last_verified?: string;
+    verified_by?: string;
+    verified_hitl?: string;
+    prices_valid_as_of?: string;
+} | undefined;
+
+const lastModified  = data?.last_modified;
+const lastVerified  = data?.last_verified;
+const verifiedBy    = data?.verified_by;
+const verifiedHitl  = data?.verified_hitl;
+const pricesValidAs = data?.prices_valid_as_of;
+
+const hasAny = lastModified || lastVerified || verifiedBy || verifiedHitl;
+---
+
+{hasAny && (
+  <aside class="verified-badge print:hidden" aria-label="Editorial metadata">
+    <div class="verified-badge__inner">
+      {lastModified && (
+        <span class="verified-badge__item">
+          <span class="verified-badge__icon" aria-hidden="true">✏️</span>
+          <span class="verified-badge__label">Modifié</span>
+          <time datetime={lastModified}>{lastModified}</time>
+        </span>
+      )}
+      {lastVerified && (
+        <span class="verified-badge__item">
+          <span class="verified-badge__icon" aria-hidden="true">✅</span>
+          <span class="verified-badge__label">Vérifié</span>
+          <time datetime={lastVerified}>{lastVerified}</time>
+        </span>
+      )}
+      {verifiedHitl && (
+        <span class="verified-badge__item">
+          <span class="verified-badge__icon" aria-hidden="true">👤</span>
+          <span class="verified-badge__label">HITL</span>
+          <span>{verifiedHitl}</span>
+        </span>
+      )}
+      {verifiedBy && (
+        <span class="verified-badge__item verified-badge__item--agent" title={`Agent: ${verifiedBy}`}>
+          <span class="verified-badge__icon" aria-hidden="true">🤖</span>
+          <span class="verified-badge__label">Agent</span>
+          <span>{verifiedBy}</span>
+        </span>
+      )}
+      {pricesValidAs && (
+        <span class="verified-badge__item verified-badge__item--prices">
+          <span class="verified-badge__icon" aria-hidden="true">💰</span>
+          <span class="verified-badge__label">Prix valides en</span>
+          <span>{pricesValidAs}</span>
+        </span>
+      )}
+    </div>
+  </aside>
+)}
+
+<style>
+  @layer starlight.core {
+    .verified-badge {
+      margin-top: 2rem;
+      padding: 0.6rem 1rem;
+      border-top: 1px solid var(--sl-color-gray-5);
+      font-size: var(--sl-text-xs);
+      color: var(--sl-color-gray-3);
+    }
+
+    .verified-badge__inner {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.25rem 1.25rem;
+      align-items: center;
+    }
+
+    .verified-badge__item {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      white-space: nowrap;
+    }
+
+    .verified-badge__label {
+      font-weight: 500;
+      color: var(--sl-color-gray-2);
+    }
+
+    .verified-badge__item--agent {
+      opacity: 0.7;
+      cursor: default;
+    }
+
+    .verified-badge__item--prices {
+      color: var(--sl-color-orange-high, var(--sl-color-gray-3));
+    }
+
+    :global(:root[data-theme='light']) .verified-badge {
+      border-top-color: var(--sl-color-gray-4);
+    }
+  }
+</style>

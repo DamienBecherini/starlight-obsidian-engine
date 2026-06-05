@@ -2,6 +2,7 @@ import { defineCollection } from 'astro:content';
 import { glob } from 'astro/loaders';
 import { docsLoader } from '@astrojs/starlight/loaders';
 import { docsSchema } from '@astrojs/starlight/schema';
+import { z } from 'astro/zod';
 import fs from 'node:fs';
 import path from 'node:path';
 import { projectRoot, resolveVaultPath, resolveVaultGitRoot } from '../config/vault.mjs';
@@ -35,6 +36,14 @@ const innerDocsLoader = useDocsLoader()
 			pattern: '**/[^_]*.{md,mdx}',
 		});
 
+const editorialSchema = z.object({
+	last_modified: z.string().optional(),
+	last_verified: z.string().optional(),
+	verified_by: z.string().optional(),
+	verified_hitl: z.string().optional(),
+	prices_valid_as_of: z.string().optional(),
+});
+
 export const collections = {
 	docs: defineCollection({
 		loader: vaultAwareDocsLoader({
@@ -42,6 +51,6 @@ export const collections = {
 			vaultRoot,
 			engineRoot: projectRoot,
 		}),
-		schema: docsSchema(),
+		schema: docsSchema({ extend: editorialSchema }),
 	}),
 };
