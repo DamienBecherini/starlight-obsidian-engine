@@ -987,6 +987,8 @@ async function uploadSelectedFilesFtps(
 ) {
     const vaultRoot = resolveVaultGitRoot();
     const totalBytes = uploads.reduce((s, u) => s + u.entry.size, 0);
+    const groups = groupUploadsByParent(distDir, uploads);
+    const parentKeys = [...groups.keys()].sort(compareUploadParentKeys);
     const progress = createUploadProgress({ totalBytes });
     let bytesDone = 0;
     let filesSinceReconnect = 0;
@@ -999,9 +1001,6 @@ async function uploadSelectedFilesFtps(
             if (info.name) transferState.lastFile = info.name;
         });
     };
-
-    const groups = groupUploadsByParent(distDir, uploads);
-    const parentKeys = [...groups.keys()].sort(compareUploadParentKeys);
 
     await prepareFtpsCwd(session, config, remoteBase);
     attachProgress();
