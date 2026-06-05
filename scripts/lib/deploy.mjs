@@ -214,16 +214,59 @@ export function loadVaultDeployEnv() {
     return vaultRoot;
 }
 
+/**
+ * Copies files from vault's `public/` directory into engine's `public/` before build.
+ * Returns the list of files copied so they can be cleaned up afterwards.
+ * @returns {string[]} Absolute paths of copied files in engine public/.
+ */
+function copyVaultPublic() {
+    const vaultRoot = resolveVaultGitRoot();
+    const vaultPublic = path.join(vaultRoot, 'public');
+    const enginePublic = path.join(projectRoot, 'public');
+
+    if (!fs.existsSync(vaultPublic)) return [];
+
+    const entries = fs.readdirSync(vaultPublic, { withFileTypes: true });
+    /** @type {string[]} */
+    const copied = [];
+
+    for (const entry of entries) {
+        if (!entry.isFile()) continue;
+        const src = path.join(vaultPublic, entry.name);
+        const dest = path.join(enginePublic, entry.name);
+        fs.copyFileSync(src, dest);
+        copied.push(dest);
+    }
+
+    if (copied.length > 0) {
+        console.log(`📂 Vault public/ → engine public/ : ${copied.map((f) => path.basename(f)).join(', ')}`);
+    }
+
+    return copied;
+}
+
 export function runBuild() {
     console.log('\n🔨 Building static site…');
-    const build = spawnSync('npm', ['run', 'build'], {
-        cwd: projectRoot,
-        stdio: 'inherit',
-        shell: true,
-    });
-    if (build.status !== 0) {
-        console.error('❌ Build failed. Aborted.');
-        process.exit(build.status ?? 1);
+
+    const copiedFiles = copyVaultPublic();
+
+    try {
+        const build = spawnSync('npm', ['run', 'build'], {
+            cwd: projectRoot,
+            stdio: 'inherit',
+            shell: true,
+        });
+        if (build.status !== 0) {
+            console.error('❌ Build failed. Aborted.');
+            process.exit(build.status ?? 1);
+        }
+    } finally {
+        for (const f of copiedFiles) {
+            try { fs.unlinkSync(f); } catch { /* ignore */ }
+        }
+        if (copiedFiles.length > 0) {
+            console.log(`🧹 Cleaned vault assets from engine public/`);
+        }
     }
 }
 

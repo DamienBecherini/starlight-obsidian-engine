@@ -3,8 +3,15 @@
 import Default from '@astrojs/starlight/components/Head.astro';
 import MermaidEnhancer from './MermaidEnhancer.astro';
 import FootnoteBackrefHighlight from './FootnoteBackrefHighlight.astro';
+import { loadSiteConfig } from '../../config/site.mjs';
+
+const site = loadSiteConfig();
+const ogImage = site.ogImage ?? '';
 ---
 
 <Default><slot /></Default>
+{ogImage && <meta property="og:image" content={ogImage} />}
+{ogImage && <meta name="twitter:card" content="summary_large_image" />}
+{ogImage && <meta name="twitter:image" content={ogImage} />}
 <MermaidEnhancer />
 <FootnoteBackrefHighlight />
