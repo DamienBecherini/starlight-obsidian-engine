@@ -63,7 +63,7 @@ export function parseLexiconFrontmatter(raw) {
  * @returns {{ title?: string, description?: string, tags: string[] } | null}
  */
 export function readLexiconEntry(filePath) {
-    const content = fs.readFileSync(filePath, 'utf-8');
+    const content = fs.readFileSync(filePath, 'utf-8').replace(/^\uFEFF/, '');
     const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
     if (!match) return null;
     return parseLexiconFrontmatter(match[1]);
@@ -198,4 +198,109 @@ export function writeLexiconIndex(vaultRoot, config) {
     const { entries, markdown, outputPath } = buildLexiconIndex(vaultRoot, config);
     fs.writeFileSync(outputPath, markdown, 'utf-8');
     return entries.length;
+}
+
+// ---------------------------------------------------------------------------
+// Locale-aware index generation (e.g. en/00-lexique/lexicon-index.md)
+// ---------------------------------------------------------------------------
+
+/**
+ * Renders a lexicon index from explicit metadata instead of reading it from config.
+ * Avoids table format (pipe-conflicts with wikilink alias divider).
+ * @param {LexiconEntry[]} entries
+ * @param {{ title: string, description: string, intro: string }} meta
+ * @param {string} directory Vault-relative directory (e.g. "00-lexique")
+ * @returns {string}
+ */
+export function renderIndexMarkdownWithMeta(entries, meta, directory) {
+    const items = entries.map((e) => {
+        const link = mdWikiLink(e.slug, e.title, directory);
+        const def = e.description.replace(/\r?\n/g, ' ').trim();
+        return `- ${link} — ${def}`;
+    });
+    return [
+        '---',
+        `title: ${meta.title}`,
+        `description: ${meta.description}`,
+        '---',
+        '',
+        meta.intro,
+        '',
+        ...items,
+        '',
+    ].join('\n');
+}
+
+/**
+ * Collects lexicon entries from a locale-specific directory (e.g. en/00-lexique/).
+ * Returns an empty array if the directory does not exist.
+ * @param {string} vaultRoot
+ * @param {LexiconConfigEnabled} config
+ * @param {string} locale Locale prefix (e.g. "en")
+ * @param {string} sortLocale BCP 47 tag for sorting (e.g. "en")
+ * @returns {LexiconEntry[]}
+ */
+export function collectLexiconEntriesForLocale(vaultRoot, config, locale, sortLocale) {
+    const dir = config.directory.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+    const localeDir = path.join(vaultRoot, locale, dir);
+    if (!fs.existsSync(localeDir)) return [];
+
+    const indexBasename = path.basename(config.indexPage);
+    const hubBasename = path.basename(config.hubPage);
+    const isIgnored = loadVaultGitignore(vaultRoot);
+    /** @type {LexiconEntry[]} */
+    const entries = [];
+
+    for (const name of fs.readdirSync(localeDir)) {
+        if (!name.endsWith('.md')) continue;
+        if (name === hubBasename || name === indexBasename) continue;
+
+        const vaultRel = `${locale}/${dir}/${name}`.replace(/\\/g, '/');
+        if (isIgnored(vaultRel)) continue;
+
+        const meta = readLexiconEntry(path.join(localeDir, name));
+        if (!meta?.tags.includes(config.entryTag)) continue;
+
+        const slug = name.replace(/\.md$/i, '');
+        entries.push({
+            slug,
+            title: meta.title?.trim() || slug,
+            description: meta.description?.trim() || '-',
+            warnings: [],
+        });
+
+        const entry = entries[entries.length - 1];
+        if (!meta.title?.trim()) entry.warnings.push('missing title');
+        if (!meta.description?.trim()) entry.warnings.push('missing description');
+    }
+
+    entries.sort((a, b) =>
+        a.title.localeCompare(b.title, sortLocale, { sensitivity: 'base' }),
+    );
+    return entries;
+}
+
+/**
+ * Builds and writes a locale-specific lexicon index.
+ * Reads entries from <locale>/<directory>/, writes to <locale>/<directory>/lexicon-index.md.
+ * Returns { count, outputPath } — count is 0 and outputPath is '' if skipped.
+ * @param {string} vaultRoot
+ * @param {LexiconConfigEnabled} config
+ * @param {string} locale
+ * @param {{ title: string, description: string, intro: string }} translation
+ * @param {string} sortLocale
+ * @returns {{ count: number, outputPath: string }}
+ */
+export function writeLocaleIndex(vaultRoot, config, locale, translation, sortLocale) {
+    const dir = config.directory.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+    const localeDir = path.join(vaultRoot, locale, dir);
+    if (!fs.existsSync(localeDir)) return { count: 0, outputPath: '' };
+
+    const entries = collectLexiconEntriesForLocale(vaultRoot, config, locale, sortLocale);
+    if (entries.length === 0) return { count: 0, outputPath: '' };
+
+    const markdown = renderIndexMarkdownWithMeta(entries, translation, dir);
+    const outputPath = path.join(localeDir, path.basename(config.indexPage));
+    fs.writeFileSync(outputPath, markdown, 'utf-8');
+    return { count: entries.length, outputPath };
 }

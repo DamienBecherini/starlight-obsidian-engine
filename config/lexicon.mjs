@@ -4,11 +4,20 @@ import path from 'node:path';
 import { resolveVaultPath } from './vault.mjs';
 
 /**
+ * @typedef {Object} LexiconIndexTranslation
+ * @property {string} title
+ * @property {string} description
+ * @property {string} intro
+ * @property {{ path: string, label: string } | undefined} [hubLink]
+ */
+
+/**
  * @typedef {Object} LexiconIndexConfig
  * @property {string} title
  * @property {string} description
  * @property {string} intro
  * @property {{ path: string, label: string } | undefined} [hubLink]
+ * @property {Record<string, LexiconIndexTranslation> | undefined} [translations]
  */
 
 /**
@@ -93,6 +102,32 @@ export function parseLexiconBlock(raw) {
         }
     }
 
+    /** @type {Record<string, LexiconIndexTranslation> | undefined} */
+    let translations;
+    if (indexRaw?.translations && typeof indexRaw.translations === 'object') {
+        const raw = /** @type {Record<string, unknown>} */ (indexRaw.translations);
+        translations = {};
+        for (const [locale, val] of Object.entries(raw)) {
+            if (!val || typeof val !== 'object') continue;
+            const t = /** @type {Record<string, unknown>} */ (val);
+            const tTitle = typeof t.title === 'string' ? t.title.trim() : '';
+            const tDesc = typeof t.description === 'string' ? t.description.trim() : '';
+            const tIntro = typeof t.intro === 'string' ? t.intro.trim() : '';
+            /** @type {{ path: string, label: string } | undefined} */
+            let tHubLink;
+            if (t.hubLink && typeof t.hubLink === 'object') {
+                const hl = /** @type {Record<string, unknown>} */ (t.hubLink);
+                const hlPath = typeof hl.path === 'string' ? hl.path.trim() : '';
+                const hlLabel = typeof hl.label === 'string' ? hl.label.trim() : '';
+                if (hlPath && hlLabel) tHubLink = { path: hlPath, label: hlLabel };
+            }
+            if (tTitle && tDesc && tIntro) {
+                translations[locale] = { title: tTitle, description: tDesc, intro: tIntro, hubLink: tHubLink };
+            }
+        }
+        if (Object.keys(translations).length === 0) translations = undefined;
+    }
+
     return {
         enabled: true,
         directory,
@@ -100,7 +135,7 @@ export function parseLexiconBlock(raw) {
         hubPage,
         indexPage,
         sortLocale,
-        index: { title, description, intro, hubLink },
+        index: { title, description, intro, hubLink, translations },
     };
 }
 
