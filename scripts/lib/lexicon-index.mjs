@@ -140,8 +140,21 @@ function resolvePathsFromConfig(config, vaultRoot) {
 }
 
 /**
+ * Generates a GFM table cell Markdown link for a lexicon entry.
+ * Uses `escapeTableCell` on the title so pipe characters don't break the table.
+ * @param {string} slug
+ * @param {string} title
+ * @param {string} directory
+ * @returns {string}
+ */
+export function mdLinkCell(slug, title, directory) {
+    const label = escapeTableCell(title);
+    return `[${label}](/${directory}/${slug}/)`;
+}
+
+/**
  * Generates an Obsidian wikilink for a lexicon entry.
- * Uses list format (not table) to avoid GFM table pipe conflicts with the alias divider.
+ * Used by list-format renderers where GFM table pipe conflicts are not a concern.
  * @param {string} slug
  * @param {string} title
  * @param {string} directory
@@ -158,10 +171,10 @@ export function mdWikiLink(slug, title, directory) {
  */
 export function renderIndexMarkdown(entries, config) {
     const directory = config.directory.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
-    const items = entries.map((e) => {
-        const link = mdWikiLink(e.slug, e.title, directory);
-        const def = e.description.replace(/\r?\n/g, ' ').trim();
-        return `- ${link} — ${def}`;
+    const rows = entries.map((e) => {
+        const term = mdLinkCell(e.slug, e.title, directory);
+        const def = escapeTableCell(e.description);
+        return `| ${term} | ${def} |`;
     });
 
     return [
@@ -172,7 +185,9 @@ export function renderIndexMarkdown(entries, config) {
         '',
         config.index.intro,
         '',
-        ...items,
+        '| Terme | Définition |',
+        '| :-- | :-- |',
+        ...rows,
         '',
     ].join('\n');
 }
