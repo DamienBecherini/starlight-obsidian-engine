@@ -150,12 +150,17 @@ export function resolveVaultPath() {
         return env;
     }
 
-    if (hasMarkdownFiles(LINKED_DOCS)) {
+    // Prefer the junction only when it actually points at the configured vault.
+    if (env && isDocsLinkedToVault(env)) {
         return LINKED_DOCS;
     }
 
     if (env) {
         return env;
+    }
+
+    if (hasMarkdownFiles(LINKED_DOCS)) {
+        return LINKED_DOCS;
     }
 
     return LINKED_DOCS;
@@ -190,6 +195,26 @@ export function resolveVaultGitRoot() {
     } catch {
         return candidate;
     }
+}
+
+/**
+ * True when `src/content/docs` is a junction/symlink pointing to the active vault
+ * (or literally IS the vault path). Prevents staging/cleanup from touching vault files.
+ * @param {string} [vaultPath]
+ * @returns {boolean}
+ */
+export function isDocsLinkedToVault(vaultPath = resolveVaultPath()) {
+    const linked = path.normalize(LINKED_DOCS);
+    const normalized = path.normalize(vaultPath);
+    if (normalized === linked) return true;
+    try {
+        if (fs.existsSync(linked)) {
+            return fs.realpathSync(linked) === fs.realpathSync(vaultPath);
+        }
+    } catch {
+        /* fall through */
+    }
+    return false;
 }
 
 /**

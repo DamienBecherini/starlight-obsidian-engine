@@ -16,7 +16,10 @@ export const markdown = {
                 remarkWikiLink,
                 {
                     aliasDivider: '|',
-                    hrefTemplate: (permalink) => `/${permalink}/`,
+                    hrefTemplate: (permalink) => {
+                        const clean = permalink.replace(/\/index$/i, '');
+                        return `/${clean}/`;
+                    },
                     pageResolver: (name) => [name.trim().replace(/ /g, '-').toLowerCase()],
                 },
             ],

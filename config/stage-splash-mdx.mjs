@@ -6,7 +6,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { projectRoot, resolveVaultPath } from './vault.mjs';
+import { projectRoot, resolveVaultPath, resolveVaultGitRoot, isDocsLinkedToVault } from './vault.mjs';
 
 const LINKED_DOCS = path.join(projectRoot, 'src/content/docs');
 
@@ -17,9 +17,23 @@ const SPLASH_REL_PATHS = ['index.mdx', 'en/index.mdx'];
  * @returns {string[]} Absolute paths of staged files (for cleanup).
  */
 export function stageVaultSplashMdx() {
+    // When src/content/docs is a junction → vault, MDX is already reachable via docsLoader.
+    // Staging would copy vault files on top of the junction (no-op at best, destructive at worst).
+    if (isDocsLinkedToVault()) return [];
+
     const vaultPath = resolveVaultPath();
     /** @type {string[]} */
     const staged = [];
+
+    // Remove stale splash files from a previous vault before copying the active one.
+    for (const rel of SPLASH_REL_PATHS) {
+        const dest = path.join(LINKED_DOCS, rel);
+        try {
+            if (fs.existsSync(dest)) fs.unlinkSync(dest);
+        } catch {
+            /* ignore */
+        }
+    }
 
     for (const rel of SPLASH_REL_PATHS) {
         const src = path.join(vaultPath, rel);
@@ -42,8 +56,16 @@ export function stageVaultSplashMdx() {
 
 /** @param {string[]} staged Absolute paths previously returned by stageVaultSplashMdx(). */
 export function cleanupStagedSplashMdx(staged) {
+    // Never delete a file that resolves into the vault directory.
+    let vaultRoot = '';
+    try { vaultRoot = path.normalize(resolveVaultGitRoot()); } catch { /* ignore */ }
+
     for (const file of staged) {
         try {
+            if (vaultRoot) {
+                const real = path.normalize(fs.realpathSync(file));
+                if (real === vaultRoot || real.startsWith(`${vaultRoot}${path.sep}`)) continue;
+            }
             fs.unlinkSync(file);
         } catch {
             /* ignore */
@@ -69,5 +91,6 @@ export function cleanupStagedSplashMdx(staged) {
 
 /** @returns {boolean} */
 export function hasStagedSplashMdx() {
+    if (isDocsLinkedToVault()) return false;
     return fs.existsSync(path.join(LINKED_DOCS, 'index.mdx'));
 }

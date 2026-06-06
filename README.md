@@ -15,14 +15,15 @@
 
 ---
 
-A **generic Astro + Starlight engine** that turns an **Obsidian** vault into a fast, multilingual static
-documentation site. The engine (this repo) and the content (your vault) live in **two separate
+A **generic Astro + Starlight engine** that turns one or more **Obsidian** vaults into fast, multilingual
+static documentation sites. The engine (this repo) and the content (your vaults) live in **separate
 repositories**: edit your notes in Obsidian, let the engine publish them.
 
 ## Why?
 
-- **Full decoupling** — the engine holds no notes. Content is mounted from an external vault through a
-  junction (`src/content/docs`), resolved at build time from `VAULT_PATH`.
+- **Full decoupling** — the engine holds no notes. Each vault is resolved at build time via the
+  `VAULT_<name>` registry or the `--vault=<name>` flag; `VAULT_PATH` is the single-vault fallback.
+  A junction (`src/content/docs`) is optional and only needed for IDE path resolution.
 - **Obsidian first** — author with wiki links `[[...]]`, templates and Mermaid diagrams; the web render follows.
 - **Interactive Mermaid** — wheel/button zoom, pan and fullscreen via a custom `MermaidEnhancer` built on `svg-pan-zoom`.
 - **Multilingual** — i18n routing out of the box (locales driven by the vault config).
@@ -33,39 +34,48 @@ repositories**: edit your notes in Obsidian, let the engine publish them.
 
 ```
 Webdev/
-├─ starlight-obsidian-engine/   ← this repo (engine, public)
-│  └─ src/content/docs   ────────┐  (Windows junction / symlink)
-└─ your-obsidian-vault/         ◄┘  ← Obsidian vault (content, private)
-   ├─ site.config.json          (title, url, locales, sidebar, social)
-   ├─ index.mdx
-   └─ 01-foundations/…
+├─ starlight-obsidian-engine/   ← this repo (engine, shared)
+├─ ia-on-prem-vault/            ← vault A (content, private)
+│   ├─ site.config.json         (title, url, locales, sidebar, social)
+│   ├─ index.mdx
+│   └─ 01-foundations/…
+└─ software-craft-vault/        ← vault B (content, private)
+    ├─ site.config.json
+    └─ …
 ```
 
-Content **does not live** in the engine: it is resolved at build time from `VAULT_PATH`. The junction is
-**required** so Vite can resolve `@astrojs/starlight/components` imports inside the vault's `.mdx` files
-(`preserveSymlinks` in `astro.config.mjs`).
+The engine resolves vault content at build time from the `VAULT_<name>` registry in `.env` or the
+`--vault=<name>` flag. `VAULT_PATH` is the single-vault fallback (retrocompat). No file is mutated at
+runtime — the vault path is resolved **in memory only**.
+
+A junction (`src/content/docs → vault`) is **optional**: create one with `npm run link:vault` if you
+want IDE path resolution (Vite `preserveSymlinks`) for `.mdx` imports inside the vault. It is never
+required for `dev`, `build`, or `publish`.
 
 **Requires Node.js 22+** (same version as CI). Uses `node:test` (built-in test runner) and `parseEnv` from `node:util`.
 
 ## Quick start
 
 ```bash
-# 1. Clone the engine and place your Obsidian vault next to it
+# 1. Clone the engine and place your Obsidian vault(s) next to it
 git clone https://github.com/DamienBecherini/starlight-obsidian-engine.git
 cd starlight-obsidian-engine
 
-# 2. Point to the vault
-cp .env.example .env            # then edit VAULT_PATH (e.g. ../your-obsidian-vault)
+# 2. Register your vault(s)
+cp .env.example .env
+# Single vault: set VAULT_PATH=../your-obsidian-vault
+# Multi-vault:  add VAULT_<name>=<path> entries (see .env.example)
 
-# 3. Install + link the vault (creates the junction src/content/docs → VAULT_PATH)
+# 3. Install
 npm install
-npm run link:vault
 
 # 4. Run
-npm run dev                     # http://localhost:4321
+npm run dev                     # uses VAULT_PATH (single-vault fallback)
+npm run dev:ia-on-prem          # uses VAULT_ia-on-prem (multi-vault)
 ```
 
-`predev` / `prebuild` recreate the junction automatically if it is missing.
+> **Junction optional.** `npm run link:vault` creates `src/content/docs → VAULT_PATH` for IDE path
+> resolution. It is **not required** for `dev`, `build`, or `publish`.
 
 ## Site configuration (`site.config.json`, in the vault)
 
@@ -131,21 +141,31 @@ npm run link-graph:build
 
 | Command | Purpose |
 |---------|---------|
-| `npm run dev` | Development server |
+| `npm run dev` | Development server (uses `VAULT_PATH` fallback) |
+| `npm run dev:<name>` | Dev server for a registered vault (e.g. `dev:ia-on-prem`, `dev:craft`) |
 | `npm run build` | Static build (`dist/`) |
 | `npm run preview` | Preview the build |
-| `npm run link:vault` | (Re)create the junction `src/content/docs` → `VAULT_PATH` |
+| `npm run link:vault` | (Re)create the junction `src/content/docs` → `VAULT_PATH` (optional, IDE nav only) |
 | `npm run lexicon:index` | Regenerate the vault lexicon index (`lexicon.indexPage`) from entry frontmatter |
 | `npm run lexicon:voir-aussi` | Upgrade `## Voir aussi` wiki links in lexicon entry pages |
 | `npm run link-graph:build` | Regenerate `src/generated/link-graph.json` from vault link graph |
 | `npm run audit:links` | Report unresolved wiki/MD links; exits 1 only on unexpected failures (allowlist: vault's `.agents/vault-maintenance/link-audit-allowlist.md`); add `--strict` to fail on any unresolved link, `--warn-only` to always exit 0 |
-| `npm run publish` | Git sync (optional) → build → remote upload (see [Publishing](#publishing)) |
-| `npm run deploy` | Build + remote upload (no git) |
+| `npm run publish` | Git sync (optional) → build → remote upload (uses `VAULT_PATH` fallback) |
+| `npm run publish:<name>` | Full publish for a registered vault (e.g. `publish:ia-on-prem`, `publish:craft`) |
+| `npm run deploy` | Build + remote upload, no git (uses `VAULT_PATH` fallback) |
+| `npm run deploy:<name>` | Build + deploy for a registered vault (e.g. `deploy:ia-on-prem`, `deploy:craft`) |
 | `npm run upload` | Remote upload only (existing `dist/`, no git, no build) |
 | `npm run auth:install` | Protect the live site with Apache Basic Auth (see [Private site](#private-site-basic-auth)) |
 | `npm run auth:remove` | Remove Basic Auth (make the site public again) |
 | `npm test` | Unit tests (deploy manifest, gitignore, link-graph, lexicon, auth, CLI flags) |
 | `npm run test:build` | Smoke build using `tests/fixtures/minimal-vault/` |
+
+All `publish`, `deploy`, and `upload` commands also accept a `--vault=<name>` flag directly:
+
+```bash
+npm run publish -- --vault=craft
+npm run deploy  -- --vault=ia-on-prem
+```
 
 ## Tests
 
@@ -198,7 +218,13 @@ npm run audit:links  →  unresolved links (exit 1 only on unexpected; use --str
 **Engine** (`starlight-obsidian-engine/.env`):
 
 ```env
+# Single vault (fallback)
 VAULT_PATH=../your-obsidian-vault
+
+# Multi-vault registry — register each vault with VAULT_<name>=<path>
+# Used by: --vault=<name> flag, npm run dev:<name>, npm run publish:<name>, etc.
+# VAULT_ia-on-prem=../ia-on-prem-vault
+# VAULT_craft=../software-craft-vault
 ```
 
 **Vault** (`your-vault/.env`):
@@ -495,7 +521,7 @@ scripts/              vault linking, pre-dev/build checks, publish (FTPS/SFTP)
 src/components/       Head, Footer, MermaidEnhancer, PageSidebar, PageBacklinks, VerifiedBadge overrides
 src/styles/           Mermaid, KaTeX, backlinks, footnotes, external-links Starlight overrides
 src/generated/        link-graph.json (gitignored; rebuilt at predev/prebuild)
-src/content.config.ts content collection (docsLoader on the junction, glob otherwise)
+src/content.config.ts content collection (compositeLoader: docsLoader + vault glob, junction-aware)
 ```
 
 ## Contributing
