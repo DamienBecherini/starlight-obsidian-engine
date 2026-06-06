@@ -1,6 +1,26 @@
 // @ts-check
 import { loadVaultPublishFilter, entryPathToVaultRelative } from '../gitignore.mjs';
 
+/** Starlight sidebar autogenerate expects paths under `src/content/docs/`. */
+const DOCS_COLLECTION_ROOT = 'src/content/docs';
+
+/**
+ * Rewrites vault-backed entry paths so Starlight sidebar autogenerate can match them.
+ * External glob loaders store paths like `../my-vault/01-chapter/page.md`; Starlight strips
+ * only the `src/content/docs/` prefix when building sidebar groups.
+ *
+ * @param {string | undefined} filePath
+ * @param {string} engineRoot
+ * @param {string} vaultRoot
+ * @returns {string | undefined}
+ */
+export function normalizeDocsCollectionFilePath(filePath, engineRoot, vaultRoot) {
+    if (!filePath) return filePath;
+    const vaultRel = entryPathToVaultRelative(filePath, engineRoot, vaultRoot);
+    if (!vaultRel) return filePath;
+    return `${DOCS_COLLECTION_ROOT}/${vaultRel}`;
+}
+
 /**
  * @typedef {import('astro/loaders').Loader} Loader
  * @typedef {import('astro/loaders').LoaderContext} LoaderContext
@@ -55,6 +75,16 @@ export function vaultAwareDocsLoader({ inner, vaultRoot, engineRoot }) {
 
             if (excluded) {
                 context.logger.info(`Excluded ${excluded} unpublished vault file(s) from build.`);
+            }
+
+            for (const id of [...context.store.keys()]) {
+                const entry = context.store.get(id);
+                if (!entry?.filePath) continue;
+                const normalized = normalizeDocsCollectionFilePath(entry.filePath, engineRoot, vaultRoot);
+                if (normalized !== entry.filePath) {
+                    // Mutate in place: store.set() skips updates when digest is unchanged.
+                    entry.filePath = normalized;
+                }
             }
         },
     };

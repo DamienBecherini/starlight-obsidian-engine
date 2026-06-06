@@ -8,7 +8,8 @@ import { stdin as input, stdout as output } from 'node:process';
 import { Client as FtpClient } from 'basic-ftp';
 import SftpClient from 'ssh2-sftp-client';
 import { loadEnvFile } from '../../config/env.mjs';
-import { projectRoot, resolveVaultGitRoot } from '../../config/vault.mjs';
+import { projectRoot, resolveVaultGitRoot, resolveDistDir, resolveAstroOutDir } from '../../config/vault.mjs';
+import { stageVaultSplashMdx, cleanupStagedSplashMdx } from '../../config/stage-splash-mdx.mjs';
 
 export { resolveVaultGitRoot };
 import { createUploadProgress, humanBytes } from './upload-progress.mjs';
@@ -246,15 +247,22 @@ function copyVaultPublic() {
 }
 
 export function runBuild() {
+    const outDir = resolveAstroOutDir();
     console.log('\n🔨 Building static site…');
+    console.log(`   Output: ${outDir}`);
 
     const copiedFiles = copyVaultPublic();
+    const stagedSplash = stageVaultSplashMdx();
 
     try {
         const build = spawnSync('npm', ['run', 'build'], {
             cwd: projectRoot,
             stdio: 'inherit',
             shell: true,
+            env: {
+                ...process.env,
+                ASTRO_OUT_DIR: outDir,
+            },
         });
         if (build.status !== 0) {
             console.error('❌ Build failed. Aborted.');
@@ -267,6 +275,7 @@ export function runBuild() {
         if (copiedFiles.length > 0) {
             console.log(`🧹 Cleaned vault assets from engine public/`);
         }
+        cleanupStagedSplashMdx(stagedSplash);
     }
 }
 
@@ -1563,9 +1572,9 @@ export async function uploadDist(
     { mirror = true, confirm: askConfirm = false, incremental = true } = {},
 ) {
     const resolved = config ?? prepareDeployConfig();
-    const distDir = path.join(projectRoot, 'dist');
+    const distDir = resolveDistDir();
     if (!fs.existsSync(distDir)) {
-        console.error('❌ dist/ not found. Run npm run build first.');
+        console.error(`❌ ${distDir} not found. Run npm run build first.`);
         process.exit(1);
     }
 

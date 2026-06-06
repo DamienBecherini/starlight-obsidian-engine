@@ -26,6 +26,99 @@ const LINKED_DOCS = path.join(projectRoot, 'src/content/docs');
 loadEnvFile(projectRoot);
 
 /**
+ * Reads --vault=<name> (or --vault <name>) from process.argv at module load time.
+ * Looks up VAULT_<name> in the engine .env registry, then overwrites VAULT_PATH and
+ * sets FORCE_VAULT_PATH=1 so every child process (including `npm run build`) inherits
+ * the correct vault without any file mutation.
+ * The flag is stripped from argv before downstream arg parsers run.
+ */
+function resolveVaultFromArg() {
+    let name = null;
+    const eqIdx = process.argv.findIndex((a) => a.startsWith('--vault='));
+    if (eqIdx !== -1) {
+        name = process.argv[eqIdx].split('=')[1];
+        process.argv.splice(eqIdx, 1);
+    } else {
+        const spaceIdx = process.argv.indexOf('--vault');
+        if (spaceIdx !== -1 && process.argv[spaceIdx + 1]) {
+            name = process.argv[spaceIdx + 1];
+            process.argv.splice(spaceIdx, 2);
+        }
+    }
+    if (!name) return;
+
+    const key = `VAULT_${name}`;
+    const raw = process.env[key];
+    if (!raw) {
+        const registered = Object.keys(process.env)
+            .filter((k) => k.startsWith('VAULT_') && k !== 'VAULT_PATH')
+            .map((k) => k.replace(/^VAULT_/, ''));
+        console.error(`❌ Unknown vault "${name}". Add ${key}=<path> to engine .env`);
+        if (registered.length) console.error(`   Registered vaults: ${registered.join(', ')}`);
+        process.exit(1);
+    }
+    const abs = path.isAbsolute(raw) ? raw : path.resolve(projectRoot, raw);
+    process.env.VAULT_PATH = abs;
+    process.env.FORCE_VAULT_PATH = '1';
+    process.env.VAULT_SLUG = name;
+}
+resolveVaultFromArg();
+
+/**
+ * Short vault name for dist/ output and logging.
+ * Priority: VAULT_SLUG env → registry reverse-lookup → folder basename (strip trailing -vault).
+ * @returns {string}
+ */
+export function resolveVaultSlug() {
+    const slug = process.env.VAULT_SLUG?.trim();
+    if (slug) return slug;
+
+    const vaultPath = resolveVaultGitRoot();
+    for (const [key, value] of Object.entries(process.env)) {
+        if (!key.startsWith('VAULT_') || key === 'VAULT_PATH' || !value?.trim()) continue;
+        const raw = value.trim();
+        const abs = path.isAbsolute(raw) ? raw : path.resolve(projectRoot, raw);
+        let resolved = abs;
+        try {
+            resolved = fs.realpathSync(abs);
+        } catch {
+            /* keep abs */
+        }
+        let candidate = vaultPath;
+        try {
+            candidate = fs.realpathSync(vaultPath);
+        } catch {
+            /* keep vaultPath */
+        }
+        if (path.normalize(resolved) === path.normalize(candidate)) {
+            return key.replace(/^VAULT_/, '');
+        }
+    }
+
+    const base = path.basename(vaultPath);
+    return base.replace(/-vault$/i, '') || base;
+}
+
+/**
+ * Astro outDir value (relative to engine root unless absolute).
+ * @returns {string}
+ */
+export function resolveAstroOutDir() {
+    const explicit = process.env.ASTRO_OUT_DIR?.trim();
+    if (explicit) return explicit;
+    return path.join('dist', resolveVaultSlug()).split(path.sep).join('/');
+}
+
+/**
+ * Absolute path to the build output directory for the active vault.
+ * @returns {string}
+ */
+export function resolveDistDir() {
+    const outDir = resolveAstroOutDir();
+    return path.isAbsolute(outDir) ? outDir : path.resolve(projectRoot, outDir);
+}
+
+/**
  * Absolute path defined by VAULT_PATH (.env or environment variable), or null.
  * @returns {string | null}
  */
@@ -57,12 +150,17 @@ export function resolveVaultPath() {
         return env;
     }
 
-    if (hasMarkdownFiles(LINKED_DOCS)) {
+    // Prefer the junction only when it actually points at the configured vault.
+    if (env && isDocsLinkedToVault(env)) {
         return LINKED_DOCS;
     }
 
     if (env) {
         return env;
+    }
+
+    if (hasMarkdownFiles(LINKED_DOCS)) {
+        return LINKED_DOCS;
     }
 
     return LINKED_DOCS;
@@ -97,6 +195,26 @@ export function resolveVaultGitRoot() {
     } catch {
         return candidate;
     }
+}
+
+/**
+ * True when `src/content/docs` is a junction/symlink pointing to the active vault
+ * (or literally IS the vault path). Prevents staging/cleanup from touching vault files.
+ * @param {string} [vaultPath]
+ * @returns {boolean}
+ */
+export function isDocsLinkedToVault(vaultPath = resolveVaultPath()) {
+    const linked = path.normalize(LINKED_DOCS);
+    const normalized = path.normalize(vaultPath);
+    if (normalized === linked) return true;
+    try {
+        if (fs.existsSync(linked)) {
+            return fs.realpathSync(linked) === fs.realpathSync(vaultPath);
+        }
+    } catch {
+        /* fall through */
+    }
+    return false;
 }
 
 /**

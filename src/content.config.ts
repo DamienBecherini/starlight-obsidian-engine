@@ -3,38 +3,36 @@ import { glob } from 'astro/loaders';
 import { docsLoader } from '@astrojs/starlight/loaders';
 import { docsSchema } from '@astrojs/starlight/schema';
 import { z } from 'astro/zod';
-import fs from 'node:fs';
 import path from 'node:path';
-import { projectRoot, resolveVaultPath, resolveVaultGitRoot } from '../config/vault.mjs';
+import { projectRoot, resolveVaultPath, resolveVaultGitRoot, isDocsLinkedToVault } from '../config/vault.mjs';
 import { vaultAwareDocsLoader } from '../config/loaders/vault-docs.mjs';
+import { compositeLoader } from '../config/loaders/composite.mjs';
+import { hasStagedSplashMdx } from '../config/stage-splash-mdx.mjs';
 
-const LINKED_DOCS = path.join(projectRoot, 'src/content/docs');
 const vaultPath = resolveVaultPath();
 const vaultRoot = resolveVaultGitRoot();
 
-/** Junction or content under src/content/docs → native docsLoader (Vite MDX resolution). */
-function useDocsLoader() {
-	const normalized = path.normalize(vaultPath);
-	const linked = path.normalize(LINKED_DOCS);
-	if (normalized === linked) return true;
-	try {
-		if (fs.lstatSync(linked).isSymbolicLink()) {
-			return fs.realpathSync(linked) === fs.realpathSync(vaultPath);
-		}
-	} catch {
-		/* not a link */
-	}
-	return false;
-}
-
 const vaultBase = path.relative(projectRoot, vaultPath).split(path.sep).join('/');
 
-const innerDocsLoader = useDocsLoader()
+/**
+ * Junction → full docsLoader (MDX + MD via Starlight).
+ * Staged splash → compositeLoader (docsLoader for MDX + glob for vault MD).
+ * No junction, no staged → glob only (no MDX splash).
+ */
+const innerDocsLoader = isDocsLinkedToVault(vaultPath)
 	? docsLoader()
-	: glob({
-			base: vaultBase,
-			pattern: '**/[^_]*.{md,mdx}',
-		});
+	: hasStagedSplashMdx()
+		? compositeLoader(
+				docsLoader(),
+				glob({
+					base: vaultBase,
+					pattern: '**/[^_]*.md',
+				}),
+			)
+		: glob({
+				base: vaultBase,
+				pattern: '**/[^_]*.{md,mdx}',
+			});
 
 const editorialSchema = z.object({
 	last_modified: z.string().optional(),

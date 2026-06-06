@@ -7,6 +7,10 @@ import {
     forceVaultPathFromEnv,
     resolveVaultPath,
     resolveVaultGitRoot,
+    resolveVaultSlug,
+    resolveDistDir,
+    resolveAstroOutDir,
+    projectRoot,
 } from '../config/vault.mjs';
 
 const fixtureVault = path.resolve('tests/fixtures/minimal-vault');
@@ -46,4 +50,18 @@ test('resolveVaultGitRoot resolves forced VAULT_PATH', () => {
 test('envVaultPath resolves relative paths from project root', () => {
     process.env.VAULT_PATH = 'tests/fixtures/minimal-vault';
     assert.equal(envVaultPath(), fixtureVault);
+});
+
+test('resolveVaultSlug uses VAULT_SLUG when set', () => {
+    process.env.VAULT_SLUG = 'craft';
+    assert.equal(resolveVaultSlug(), 'craft');
+});
+
+test('resolveDistDir defaults to dist/<slug>', () => {
+    process.env.VAULT_PATH = fixtureVault;
+    process.env.FORCE_VAULT_PATH = '1';
+    process.env.VAULT_SLUG = 'minimal';
+    delete process.env.ASTRO_OUT_DIR;
+    assert.equal(resolveAstroOutDir(), 'dist/minimal');
+    assert.equal(resolveDistDir(), path.join(projectRoot, 'dist', 'minimal'));
 });
