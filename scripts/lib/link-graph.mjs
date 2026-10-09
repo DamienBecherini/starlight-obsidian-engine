@@ -25,7 +25,7 @@ const MD_INTERNAL_LINK_RE = /\]\(([^)\s#]+)\)/g;
  * @returns {string[]}
  */
 export function pageResolver(name) {
-    return [name.trim().replace(/ /g, '-').toLowerCase()];
+    return [name.trim().replace(/ /g, '-').toLowerCase().replace(/\/index$/i, '')];
 }
 
 /**
