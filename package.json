@@ -42,7 +42,7 @@
     "test:build:local": "node -e \"process.env.PAGEFIND='0'; import('./tests/smoke-build.mjs')\""
   },
   "dependencies": {
-    "@astrojs/react": "^5.0.6",
+    "@astrojs/react": "^7.0.1",
     "@astrojs/starlight": "^0.39.2",
     "@types/react": "^19.2.15",
     "@types/react-dom": "^19.2.3",
