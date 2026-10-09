@@ -109,74 +109,40 @@ const { mode = 'sidebar' } = Astro.props;
 ---
 
 {
-    shouldRender &&
-        (mode === 'mobile' ? (
-            <div class="page-backlinks page-backlinks--mobile">
-                <h2>{heading}</h2>
-                <div class="page-backlinks__list">
-                    {isLexiconPage ? (
-                        sortedGroups.map(([section, groupEntries]) => {
-                            const sectionLabel = backlinkSectionHeading(section, lexicon);
-                            return (
-                                <div class="page-backlinks__group">
-                                    {sectionLabel ? (
-                                        <h3 class="page-backlinks__section">{sectionLabel}</h3>
-                                    ) : null}
-                                    <ul>
-                                        {groupEntries.map((e) => (
-                                            <li>
-                                                <a href={siteHrefFromVaultSlug(e.from, locale)}>{e.title}</a>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                </div>
-                            );
-                        })
-                    ) : (
-                        <ul>
-                            {entries.map((e) => (
-                                <li>
-                                    <a href={siteHrefFromVaultSlug(e.from, locale)}>{e.title}</a>
-                                </li>
-                            ))}
-                        </ul>
-                    )}
-                </div>
+    shouldRender && (
+        <div class={`page-backlinks page-backlinks--${mode}`}>
+            <h2>{heading}</h2>
+            <div class="page-backlinks__list">
+                {isLexiconPage ? (
+                    sortedGroups.map(([section, groupEntries]) => {
+                        const sectionLabel = backlinkSectionHeading(section, lexicon);
+                        return (
+                            <div class="page-backlinks__group">
+                                {sectionLabel ? (
+                                    <h3 class="page-backlinks__section">{sectionLabel}</h3>
+                                ) : null}
+                                <ul>
+                                    {groupEntries.map((e) => (
+                                        <li>
+                                            <a href={siteHrefFromVaultSlug(e.from, locale)}>{e.title}</a>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        );
+                    })
+                ) : (
+                    <ul>
+                        {entries.map((e) => (
+                            <li>
+                                <a href={siteHrefFromVaultSlug(e.from, locale)}>{e.title}</a>
+                            </li>
+                        ))}
+                    </ul>
+                )}
             </div>
-        ) : (
-            <div class="page-backlinks page-backlinks--sidebar">
-                <h2>{heading}</h2>
-                <div class="page-backlinks__list">
-                    {isLexiconPage ? (
-                        sortedGroups.map(([section, groupEntries]) => {
-                            const sectionLabel = backlinkSectionHeading(section, lexicon);
-                            return (
-                                <div class="page-backlinks__group">
-                                    {sectionLabel ? (
-                                        <h3 class="page-backlinks__section">{sectionLabel}</h3>
-                                    ) : null}
-                                    <ul>
-                                        {groupEntries.map((e) => (
-                                            <li>
-                                                <a href={siteHrefFromVaultSlug(e.from, locale)}>{e.title}</a>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                </div>
-                            );
-                        })
-                    ) : (
-                        <ul>
-                            {entries.map((e) => (
-                                <li>
-                                    <a href={siteHrefFromVaultSlug(e.from, locale)}>{e.title}</a>
-                                </li>
-                            ))}
-                        </ul>
-                    )}
-                </div>
-            </div>
-        ))
+        </div>
+    )
 }
 
 <style>
