@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { resolveVaultPath } from './vault.mjs';
 
-/** @type {import('@astrojs/starlight/types').StarlightUserConfig['sidebar']} */
+/** @type {NonNullable<import('@astrojs/starlight/types').StarlightUserConfig['sidebar']>} */
 const defaultSidebar = [
     {
         label: 'Documentation',
@@ -11,7 +11,7 @@ const defaultSidebar = [
     },
 ];
 
-/** @type {import('@astrojs/starlight/types').StarlightUserConfig['locales']} */
+/** @type {NonNullable<import('@astrojs/starlight/types').StarlightUserConfig['locales']>} */
 const defaultLocales = {
     root: {
         label: 'English',

@@ -13,6 +13,11 @@ import {
     candidateSlugsForPath,
 } from '../scripts/lib/audit-links-lib.mjs';
 
+/**
+ * @template T
+ * @param {(ctx: { vaultRoot: string, maintenanceDir: string }) => T} callback
+ * @returns {T}
+ */
 function withTempVault(callback) {
     const vaultRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'audit-links-vault-'));
     const maintenanceDir = path.join(vaultRoot, '.agents', 'vault-maintenance');

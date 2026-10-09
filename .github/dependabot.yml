@@ -1,0 +1,27 @@
+# Mises à jour automatiques des dépendances npm et des actions GitHub épinglées par SHA (ci.yml).
+# Sans cette configuration, les SHA épinglés ne bougeraient jamais.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Paris
+    open-pull-requests-limit: 5
+    groups:
+      # Une seule PR pour toutes les mises à jour mineures et correctives ; les majeures restent séparées.
+      npm-mineures:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Paris
+    groups:
+      actions:
+        update-types: [minor, patch]

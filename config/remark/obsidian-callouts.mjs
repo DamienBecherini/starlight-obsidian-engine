@@ -55,7 +55,7 @@ export function mapObsidianCalloutType(type) {
 function parseCalloutMarker(paragraph) {
     if (paragraph?.type !== 'paragraph' || !Array.isArray(paragraph.children)) return null;
 
-    const firstText = paragraph.children.find((child) => child?.type === 'text');
+    const firstText = paragraph.children.find((/** @type {any} */ child) => child?.type === 'text');
     if (!firstText || typeof firstText.value !== 'string') return null;
 
     const [firstLine, ...restLines] = firstText.value.split(/\r?\n/);
@@ -77,7 +77,7 @@ function isEmptyParagraph(paragraph) {
     return (
         paragraph?.type === 'paragraph' &&
         Array.isArray(paragraph.children) &&
-        paragraph.children.every((child) => child?.type === 'text' && child.value.trim() === '')
+        paragraph.children.every((/** @type {any} */ child) => child?.type === 'text' && child.value.trim() === '')
     );
 }
 
@@ -92,7 +92,7 @@ function stripMarkerParagraph(children) {
 
     if (first?.type === 'paragraph' && Array.isArray(first.children)) {
         first.children = first.children.filter(
-            (child) => !(child?.type === 'text' && child.value === ''),
+            (/** @type {any} */ child) => !(child?.type === 'text' && child.value === ''),
         );
     }
 
@@ -117,7 +117,7 @@ function transformNode(node) {
     const marker = parseCalloutMarker(node.children[0]);
     if (!marker) return node;
 
-    const title = marker.title || DEFAULT_TITLES[marker.type];
+    const title = marker.title || DEFAULT_TITLES[/** @type {keyof typeof DEFAULT_TITLES} */ (marker.type)];
     const contentChildren = stripMarkerParagraph(node.children);
 
     return {

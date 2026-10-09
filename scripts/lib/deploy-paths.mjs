@@ -11,7 +11,11 @@ export function isProtectedRel(rel, protect) {
     return protect.has(top);
 }
 
-/** Root files first, heavy `_astro` last (Windows locale sorts `_astro` before `.`). */
+/**
+ * Root files first, heavy `_astro` last (Windows locale sorts `_astro` before `.`).
+ * @param {string} a
+ * @param {string} b
+ */
 export function compareUploadParentKeys(a, b) {
     if (a === '.') return -1;
     if (b === '.') return 1;
@@ -29,15 +33,16 @@ export function groupUploadsByParent(distDir, uploads) {
     const groups = new Map();
     for (const item of uploads) {
         const parent = path.posix.dirname(item.rel);
-        if (!groups.has(parent)) {
-            groups.set(parent, {
+        let group = groups.get(parent);
+        if (!group) {
+            group = {
                 localDir: parent === '.' ? distDir : path.join(distDir, parent),
                 remoteDir: parent,
                 items: [],
                 names: new Set(),
-            });
+            };
+            groups.set(parent, group);
         }
-        const group = groups.get(parent);
         group.items.push(item);
         group.names.add(path.posix.basename(item.rel));
     }

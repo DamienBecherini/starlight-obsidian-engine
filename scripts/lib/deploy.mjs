@@ -288,7 +288,10 @@ export function prepareDeployConfig() {
     return deployConfigFromEnv(vaultRoot);
 }
 
-/** @deprecated Use deployConfigFromEnv */
+/**
+ * @deprecated Use deployConfigFromEnv
+ * @param {string} vaultRoot
+ */
 export function sftpConfigFromEnv(vaultRoot) {
     return deployConfigFromEnv(vaultRoot);
 }
@@ -299,7 +302,7 @@ export function sftpConfigFromEnv(vaultRoot) {
  */
 export function deployConfigFromEnv(vaultRoot) {
     // Canonical names are DEPLOY_*; the legacy SFTP_* names are still accepted as a fallback.
-    const pick = (name) =>
+    const pick = (/** @type {string} */ name) =>
         process.env[`DEPLOY_${name}`]?.trim() ?? process.env[`SFTP_${name}`]?.trim();
     const host = pick('HOST');
     const user = pick('USER');
@@ -376,7 +379,7 @@ export function deployConfigFromEnv(vaultRoot) {
 }
 
 /** Files/dirs starting with `.` are never uploaded nor deleted (protects server-side `.htaccess`, etc.). */
-const isHidden = (name) => name.startsWith('.');
+const isHidden = (/** @type {string} */ name) => name.startsWith('.');
 
 /**
  * Builds the set of relative POSIX paths that the upload produces (mirrors the upload filter).
@@ -670,7 +673,7 @@ async function uploadDistSftpFull(config, distDir, mirror, askConfirm) {
         sftp.on('upload', onUpload);
         try {
             await sftp.uploadDir(distDir, config.remotePath, {
-                filter: (itemPath) => !isHidden(path.basename(itemPath)),
+                filter: (/** @type {string} */ itemPath) => !isHidden(path.basename(itemPath)),
             });
         } finally {
             sftp.removeListener('upload', onUpload);
@@ -992,6 +995,7 @@ async function refreshFtpsSession(session, config, remoteBase) {
  * @param {((name: string) => boolean) | undefined} filter
  */
 async function ftpsUploadFromDirOnce(session, localPath, remoteName, filter) {
+    // @ts-expect-error basic-ftp 6 ne déclare que deux paramètres : le filtre n'est pas pris en compte (à corriger, voir rapport CI).
     await session.client.uploadFromDir(localPath, remoteName, filter ? { filter } : undefined);
 }
 
@@ -1291,7 +1295,7 @@ async function uploadDistResilientFtps(session, config, distDir, remoteBase, tot
         if (!entry.isDirectory()) continue;
 
         const fileCount = countLocalFiles(localPath);
-        const hiddenFilter = (name) => !isHidden(name);
+        const hiddenFilter = (/** @type {string} */ name) => !isHidden(name);
 
         if (fileCount <= FTPS_MAX_FILES_PER_SESSION || !isFlatLocalDir(localPath)) {
             const chunkStartBytes = bytesDone;

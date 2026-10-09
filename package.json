@@ -2,6 +2,9 @@
   "name": "starlight-obsidian-engine",
   "type": "module",
   "version": "0.0.1",
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "lexicon:index": "node scripts/generate-lexicon-index.mjs",
     "lexicon:voir-aussi": "node scripts/format-lexicon-voir-aussi.mjs",
@@ -27,7 +30,10 @@
     "publish:craft": "node scripts/publish.mjs --vault=craft",
     "deploy:ia-on-prem": "node scripts/deploy.mjs --vault=ia-on-prem",
     "deploy:craft": "node scripts/deploy.mjs --vault=craft",
-    "test": "node --test tests/**/*.test.mjs",
+    "lint": "eslint .",
+    "typecheck": "astro check",
+    "duplication": "jscpd scripts config src --min-tokens 70 --threshold 5 --ignore \"**/*.test.mjs,tests/fixtures/**\" --reporters console",
+    "test": "node --test --experimental-test-coverage --test-coverage-lines=55 tests/**/*.test.mjs",
     "test:deploy": "npm test",
     "test:build": "node tests/smoke-build.mjs"
   },
@@ -52,6 +58,15 @@
     "svg-pan-zoom": "^3.6.2"
   },
   "devDependencies": {
-    "rollup-plugin-visualizer": "^7.0.1"
+    "@astrojs/check": "^0.9.10",
+    "@eslint/js": "^10.0.1",
+    "@types/ssh2-sftp-client": "^9.0.6",
+    "@typescript-eslint/parser": "^8.71.1",
+    "eslint": "^10.12.0",
+    "eslint-plugin-astro": "^1.7.0",
+    "globals": "^17.13.0",
+    "jscpd": "^5.4.1",
+    "rollup-plugin-visualizer": "^7.0.1",
+    "typescript": "^6.0.3"
   }
 }

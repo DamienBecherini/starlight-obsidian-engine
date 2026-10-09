@@ -49,7 +49,10 @@ export function loadVaultPublishFilter(vaultRoot) {
     };
 }
 
-/** @deprecated Use {@link loadVaultPublishFilter}. Kept for existing imports. */
+/**
+ * @deprecated Use {@link loadVaultPublishFilter}. Kept for existing imports.
+ * @param {string} vaultRoot
+ */
 export function loadVaultGitignore(vaultRoot) {
     return loadVaultPublishFilter(vaultRoot);
 }

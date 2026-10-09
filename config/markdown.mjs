@@ -16,11 +16,11 @@ export const markdown = {
                 remarkWikiLink,
                 {
                     aliasDivider: '|',
-                    hrefTemplate: (permalink) => {
+                    hrefTemplate: (/** @type {string} */ permalink) => {
                         const clean = permalink.replace(/\/index$/i, '');
                         return `/${clean}/`;
                     },
-                    pageResolver: (name) => [name.trim().replace(/ /g, '-').toLowerCase()],
+                    pageResolver: (/** @type {string} */ name) => [name.trim().replace(/ /g, '-').toLowerCase()],
                 },
             ],
         ],
