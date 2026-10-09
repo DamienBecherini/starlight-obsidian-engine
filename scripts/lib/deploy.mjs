@@ -964,10 +964,9 @@ const FTPS_MAX_FILES_PER_SESSION = 45;
 
 /**
  * @param {{ client: FtpClient }} session
- * @param {DeployConfig} config
  * @param {string} remoteBase
  */
-async function prepareFtpsCwd(session, config, remoteBase) {
+async function prepareFtpsCwd(session, remoteBase) {
     if (remoteBase !== '/') await session.client.ensureDir(remoteBase);
     await session.client.cd(remoteBase);
 }
@@ -986,7 +985,7 @@ async function refreshFtpsSession(session, config, remoteBase) {
     }
     session.client = new FtpClient(120_000);
     await session.client.access(ftpsAccessOptions(config));
-    await prepareFtpsCwd(session, config, remoteBase);
+    await prepareFtpsCwd(session, remoteBase);
 }
 
 /**
@@ -1060,7 +1059,7 @@ async function uploadSelectedFilesFtps(
         });
     };
 
-    await prepareFtpsCwd(session, config, remoteBase);
+    await prepareFtpsCwd(session, remoteBase);
     attachProgress();
 
     for (let parentIdx = 0; parentIdx < parentKeys.length; parentIdx++) {
@@ -1204,7 +1203,7 @@ async function deleteRemoteFilesFtps(session, config, remoteBase, relPaths, prot
     if (!toRemove.length) return;
 
     let filesSinceReconnect = 0;
-    await prepareFtpsCwd(session, config, remoteBase);
+    await prepareFtpsCwd(session, remoteBase);
 
     for (let i = 0; i < toRemove.length; i++) {
         const rel = toRemove[i];
@@ -1268,7 +1267,7 @@ async function uploadDistResilientFtps(session, config, distDir, remoteBase, tot
         .filter((e) => !isHidden(e.name))
         .sort((a, b) => a.name.localeCompare(b.name));
 
-    await prepareFtpsCwd(session, config, remoteBase);
+    await prepareFtpsCwd(session, remoteBase);
 
     for (let i = 0; i < topEntries.length; i++) {
         const entry = topEntries[i];

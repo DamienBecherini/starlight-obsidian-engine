@@ -1,7 +1,7 @@
 // @ts-check
 import fs from 'node:fs';
 import path from 'node:path';
-import { loadVaultGitignore } from '../../config/gitignore.mjs';
+import { loadVaultPublishFilter } from '../../config/gitignore.mjs';
 
 /** @typedef {import('../../config/lexicon.mjs').LexiconConfigEnabled} LexiconConfigEnabled */
 
@@ -89,7 +89,7 @@ export function collectLexiconEntries(vaultRoot, config) {
     }
 
     const directory = config.directory.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
-    const isIgnored = loadVaultGitignore(vaultRoot);
+    const isIgnored = loadVaultPublishFilter(vaultRoot);
     /** @type {LexiconEntry[]} */
     const entries = [];
 
@@ -262,7 +262,7 @@ export function collectLexiconEntriesForLocale(vaultRoot, config, locale, sortLo
 
     const indexBasename = path.basename(config.indexPage);
     const hubBasename = path.basename(config.hubPage);
-    const isIgnored = loadVaultGitignore(vaultRoot);
+    const isIgnored = loadVaultPublishFilter(vaultRoot);
     /** @type {LexiconEntry[]} */
     const entries = [];
 

@@ -1,7 +1,7 @@
 // @ts-check
 import fs from 'node:fs';
 import path from 'node:path';
-import { loadVaultGitignore } from '../../config/gitignore.mjs';
+import { loadVaultPublishFilter } from '../../config/gitignore.mjs';
 import {
     getLexiconExcludeSlugs,
     isLexiconEnabled,
@@ -146,7 +146,7 @@ export function parseAliasesFromFrontmatter(raw) {
  * @returns {PublishedMarkdownFile[]}
  */
 function listPublishedMarkdownFiles(vaultRoot) {
-    const isIgnored = loadVaultGitignore(vaultRoot);
+    const isIgnored = loadVaultPublishFilter(vaultRoot);
     /** @type {PublishedMarkdownFile[]} */
     const files = [];
 
