@@ -35,7 +35,8 @@
     "duplication": "jscpd scripts config src --min-tokens 70 --threshold 5 --ignore \"**/*.test.mjs,tests/fixtures/**\" --reporters console",
     "test": "node --test --experimental-test-coverage --test-coverage-lines=55 tests/**/*.test.mjs",
     "test:deploy": "npm test",
-    "test:build": "node tests/smoke-build.mjs"
+    "test:build": "node tests/smoke-build.mjs",
+    "test:build:local": "node -e \"process.env.PAGEFIND='0'; import('./tests/smoke-build.mjs')\""
   },
   "dependencies": {
     "@astrojs/react": "^5.0.6",

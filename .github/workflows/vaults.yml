@@ -1,0 +1,89 @@
+name: Build des vaults réels
+
+# Le CI ordinaire construit le site sur un vault de test minimal. Ce workflow clone les vrais vaults et
+# fait un build complet : il détecte les régressions du chargeur sur du contenu réel (wiki-links, callouts,
+# MDX de splash, exclusions). Trop lent pour chaque push : hebdomadaire, à la demande, et sur main.
+on:
+  workflow_dispatch:
+  schedule:
+    # Tous les lundis à 06:00 UTC.
+    - cron: "0 6 * * 1"
+  push:
+    branches: [main]
+
+concurrency:
+  group: vaults-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  construire:
+    name: Build ${{ matrix.vault }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      # Un vault en échec n'empêche pas de connaître le verdict des autres.
+      fail-fast: false
+      matrix:
+        include:
+          - vault: ia-on-prem
+            repository: DamienBecherini/ia-on-prem-vault
+            prive: false
+          - vault: craft
+            repository: DamienBecherini/software-craft-vault
+            prive: true
+    env:
+      # Jeton personnel en lecture sur les dépôts privés (secret VAULT_TOKEN) : sans lui, les vaults privés sont sautés.
+      VAULT_TOKEN: ${{ secrets.VAULT_TOKEN }}
+      # Un job ne peut pas être conditionné sur un secret : la condition est répétée sur chaque étape.
+      ACTIF: ${{ !matrix.prive || secrets.VAULT_TOKEN != '' }}
+    steps:
+      - name: Signaler un vault privé sans jeton
+        if: env.ACTIF != 'true'
+        run: |
+          echo "::notice::Vault ${{ matrix.vault }} privé et secret VAULT_TOKEN absent, build sauté."
+
+      - name: Récupérer le moteur
+        if: env.ACTIF == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: engine
+
+      - name: Récupérer le vault
+        if: env.ACTIF == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ matrix.repository }}
+          token: ${{ env.VAULT_TOKEN || github.token }}
+          path: vault
+
+      - name: Installer Node.js
+        if: env.ACTIF == 'true'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: engine/package-lock.json
+
+      - name: Installer les dépendances
+        if: env.ACTIF == 'true'
+        working-directory: engine
+        run: npm ci --ignore-scripts
+
+      - name: Auditer les wiki-links
+        if: env.ACTIF == 'true'
+        working-directory: engine
+        env:
+          VAULT_PATH: ${{ github.workspace }}/vault
+          FORCE_VAULT_PATH: "1"
+        run: npm run audit:links
+
+      - name: Build complet
+        if: env.ACTIF == 'true'
+        working-directory: engine
+        env:
+          VAULT_PATH: ${{ github.workspace }}/vault
+          FORCE_VAULT_PATH: "1"
+        run: npm run build

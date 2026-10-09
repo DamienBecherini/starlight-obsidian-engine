@@ -24,6 +24,7 @@ import {
     MANIFEST_FILENAME,
 } from './deploy-manifest.mjs';
 import { isProtectedRel, compareUploadParentKeys, groupUploadsByParent } from './deploy-paths.mjs';
+import { uploadFromDirFiltered } from './ftps-upload.mjs';
 /** Shared SFTP client: parallel uploads (single connection). */
 const SFTP_UPLOAD_CONCURRENCY = 8;
 /** Persist local manifest during SFTP upload (resume after interrupt). */
@@ -995,8 +996,9 @@ async function refreshFtpsSession(session, config, remoteBase) {
  * @param {((name: string) => boolean) | undefined} filter
  */
 async function ftpsUploadFromDirOnce(session, localPath, remoteName, filter) {
-    // @ts-expect-error basic-ftp 6 ne déclare que deux paramètres : le filtre n'est pas pris en compte (à corriger, voir rapport CI).
-    await session.client.uploadFromDir(localPath, remoteName, filter ? { filter } : undefined);
+    // basic-ftp 6 has no filter on uploadFromDir: without this helper, every batch re-uploaded
+    // the whole directory and hidden files were sent too.
+    await uploadFromDirFiltered(session.client, localPath, remoteName, filter);
 }
 
 /**
