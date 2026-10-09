@@ -24,6 +24,7 @@ import {
     MANIFEST_FILENAME,
 } from './deploy-manifest.mjs';
 import { isProtectedRel, compareUploadParentKeys, groupUploadsByParent } from './deploy-paths.mjs';
+import { uploadFromDirFiltered } from './ftps-upload.mjs';
 /** Shared SFTP client: parallel uploads (single connection). */
 const SFTP_UPLOAD_CONCURRENCY = 8;
 /** Persist local manifest during SFTP upload (resume after interrupt). */
@@ -288,7 +289,10 @@ export function prepareDeployConfig() {
     return deployConfigFromEnv(vaultRoot);
 }
 
-/** @deprecated Use deployConfigFromEnv */
+/**
+ * @deprecated Use deployConfigFromEnv
+ * @param {string} vaultRoot
+ */
 export function sftpConfigFromEnv(vaultRoot) {
     return deployConfigFromEnv(vaultRoot);
 }
@@ -299,7 +303,7 @@ export function sftpConfigFromEnv(vaultRoot) {
  */
 export function deployConfigFromEnv(vaultRoot) {
     // Canonical names are DEPLOY_*; the legacy SFTP_* names are still accepted as a fallback.
-    const pick = (name) =>
+    const pick = (/** @type {string} */ name) =>
         process.env[`DEPLOY_${name}`]?.trim() ?? process.env[`SFTP_${name}`]?.trim();
     const host = pick('HOST');
     const user = pick('USER');
@@ -376,7 +380,7 @@ export function deployConfigFromEnv(vaultRoot) {
 }
 
 /** Files/dirs starting with `.` are never uploaded nor deleted (protects server-side `.htaccess`, etc.). */
-const isHidden = (name) => name.startsWith('.');
+const isHidden = (/** @type {string} */ name) => name.startsWith('.');
 
 /**
  * Builds the set of relative POSIX paths that the upload produces (mirrors the upload filter).
@@ -670,7 +674,7 @@ async function uploadDistSftpFull(config, distDir, mirror, askConfirm) {
         sftp.on('upload', onUpload);
         try {
             await sftp.uploadDir(distDir, config.remotePath, {
-                filter: (itemPath) => !isHidden(path.basename(itemPath)),
+                filter: (/** @type {string} */ itemPath) => !isHidden(path.basename(itemPath)),
             });
         } finally {
             sftp.removeListener('upload', onUpload);
@@ -960,10 +964,9 @@ const FTPS_MAX_FILES_PER_SESSION = 45;
 
 /**
  * @param {{ client: FtpClient }} session
- * @param {DeployConfig} config
  * @param {string} remoteBase
  */
-async function prepareFtpsCwd(session, config, remoteBase) {
+async function prepareFtpsCwd(session, remoteBase) {
     if (remoteBase !== '/') await session.client.ensureDir(remoteBase);
     await session.client.cd(remoteBase);
 }
@@ -982,7 +985,7 @@ async function refreshFtpsSession(session, config, remoteBase) {
     }
     session.client = new FtpClient(120_000);
     await session.client.access(ftpsAccessOptions(config));
-    await prepareFtpsCwd(session, config, remoteBase);
+    await prepareFtpsCwd(session, remoteBase);
 }
 
 /**
@@ -992,7 +995,9 @@ async function refreshFtpsSession(session, config, remoteBase) {
  * @param {((name: string) => boolean) | undefined} filter
  */
 async function ftpsUploadFromDirOnce(session, localPath, remoteName, filter) {
-    await session.client.uploadFromDir(localPath, remoteName, filter ? { filter } : undefined);
+    // basic-ftp 6 has no filter on uploadFromDir: without this helper, every batch re-uploaded
+    // the whole directory and hidden files were sent too.
+    await uploadFromDirFiltered(session.client, localPath, remoteName, filter);
 }
 
 /**
@@ -1054,7 +1059,7 @@ async function uploadSelectedFilesFtps(
         });
     };
 
-    await prepareFtpsCwd(session, config, remoteBase);
+    await prepareFtpsCwd(session, remoteBase);
     attachProgress();
 
     for (let parentIdx = 0; parentIdx < parentKeys.length; parentIdx++) {
@@ -1198,7 +1203,7 @@ async function deleteRemoteFilesFtps(session, config, remoteBase, relPaths, prot
     if (!toRemove.length) return;
 
     let filesSinceReconnect = 0;
-    await prepareFtpsCwd(session, config, remoteBase);
+    await prepareFtpsCwd(session, remoteBase);
 
     for (let i = 0; i < toRemove.length; i++) {
         const rel = toRemove[i];
@@ -1262,7 +1267,7 @@ async function uploadDistResilientFtps(session, config, distDir, remoteBase, tot
         .filter((e) => !isHidden(e.name))
         .sort((a, b) => a.name.localeCompare(b.name));
 
-    await prepareFtpsCwd(session, config, remoteBase);
+    await prepareFtpsCwd(session, remoteBase);
 
     for (let i = 0; i < topEntries.length; i++) {
         const entry = topEntries[i];
@@ -1291,7 +1296,7 @@ async function uploadDistResilientFtps(session, config, distDir, remoteBase, tot
         if (!entry.isDirectory()) continue;
 
         const fileCount = countLocalFiles(localPath);
-        const hiddenFilter = (name) => !isHidden(name);
+        const hiddenFilter = (/** @type {string} */ name) => !isHidden(name);
 
         if (fileCount <= FTPS_MAX_FILES_PER_SESSION || !isFlatLocalDir(localPath)) {
             const chunkStartBytes = bytesDone;

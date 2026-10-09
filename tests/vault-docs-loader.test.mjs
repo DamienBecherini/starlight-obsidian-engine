@@ -17,21 +17,21 @@ test('vaultAwareDocsLoader drops ignored vault entries from store', async () => 
         ['private', { filePath: privatePath }],
     ]);
 
-    /** @type {import('astro/loaders').LoaderContext} */
-    const context = {
+    /* Partial mock: the loader only uses store/parseData/logger. */
+    const context = /** @type {import('astro/loaders').LoaderContext} */ (/** @type {unknown} */ ({
         store,
-        parseData: async (props) => props.data,
+        parseData: async (/** @type {any} */ props) => props.data,
         logger: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
         config: {},
         generateDigest: () => '',
         watcher: undefined,
         refreshContextData: async () => {},
-    };
+    }));
 
     const loader = vaultAwareDocsLoader({
         inner: {
             name: 'mock-inner',
-            load: async (ctx) => {
+            load: async (/** @type {any} */ ctx) => {
                 ctx.store.set('public', { filePath: publicPath });
                 ctx.store.set('private', { filePath: privatePath });
             },
@@ -64,21 +64,21 @@ test('vaultAwareDocsLoader normalizes vault entry filePath for Starlight sidebar
     /** @type {Map<string, { filePath?: string }>} */
     const store = new Map();
 
-    /** @type {import('astro/loaders').LoaderContext} */
-    const context = {
+    /* Partial mock: the loader only uses store/parseData/logger. */
+    const context = /** @type {import('astro/loaders').LoaderContext} */ (/** @type {unknown} */ ({
         store,
-        parseData: async (props) => props.data,
+        parseData: async (/** @type {any} */ props) => props.data,
         logger: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
         config: {},
         generateDigest: () => '',
         watcher: undefined,
         refreshContextData: async () => {},
-    };
+    }));
 
     const loader = vaultAwareDocsLoader({
         inner: {
             name: 'mock-inner',
-            load: async (ctx) => {
+            load: async (/** @type {any} */ ctx) => {
                 ctx.store.set('00-index', { filePath: vaultRelPath });
             },
         },

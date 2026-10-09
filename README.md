@@ -52,7 +52,7 @@ A junction (`src/content/docs → vault`) is **optional**: create one with `npm 
 want IDE path resolution (Vite `preserveSymlinks`) for `.mdx` imports inside the vault. It is never
 required for `dev`, `build`, or `publish`.
 
-**Requires Node.js 22+** (same version as CI). Uses `node:test` (built-in test runner) and `parseEnv` from `node:util`.
+**Requires Node.js 22+** (CI runs Node 24). Uses `node:test` (built-in test runner) and `parseEnv` from `node:util`.
 
 ## Quick start
 

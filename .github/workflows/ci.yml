@@ -2,22 +2,55 @@ name: CI
 
 on:
   push:
-    branches: [main, master]
   pull_request:
 
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+# Une nouvelle exécution sur la même branche annule la précédente.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
-      - uses: actions/setup-node@v4
+# Le jeton GITHUB_TOKEN ne sert qu'à cloner le dépôt : lecture seule.
+permissions:
+  contents: read
+
+jobs:
+  qualite:
+    name: Lint, types, tests et build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Installer Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: '22'
+          node-version: 24
           cache: npm
 
-      - run: npm ci
+      # Sans les scripts d'installation des paquets : sharp livre ses binaires précompilés en dépendances
+      # optionnelles, aucun paquet n'a besoin d'exécuter du code à l'installation.
+      - name: Installer les dépendances
+        run: npm ci --ignore-scripts
 
-      - run: npm test
+      - name: Lint (ESLint)
+        run: npm run lint
 
-      - run: npm run test:build
+      # astro check : fichiers .astro et .ts, plus les scripts JS annotés @ts-check (tsconfig strict).
+      - name: Vérifier les types
+        # Le moteur lit son contenu dans un vault externe : ici, le vault de test minimal fait office de contenu.
+        env:
+          VAULT_PATH: tests/fixtures/minimal-vault
+          FORCE_VAULT_PATH: "1"
+        run: npm run typecheck
+
+      # Couverture native de node:test, avec un seuil minimal de lignes couvertes (voir package.json).
+      - name: Tests et couverture
+        run: npm test
+
+      # Build complet sur le vault de test, dans un dossier temporaire : vérifie le rendu et l'exclusion des chemins privés.
+      - name: Build de vérification
+        run: npm run test:build
+
+      - name: Détection de code dupliqué
+        run: npm run duplication

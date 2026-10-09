@@ -4,30 +4,30 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
-import { loadVaultGitignore, loadVaultPublishFilter, entryPathToVaultRelative } from '../config/gitignore.mjs';
+import { loadVaultPublishFilter, entryPathToVaultRelative } from '../config/gitignore.mjs';
 
 const fixtureVault = path.resolve('tests/fixtures/minimal-vault');
 
-test('loadVaultGitignore excludes _private paths', () => {
-    const isIgnored = loadVaultGitignore(fixtureVault);
+test('loadVaultPublishFilter excludes _private paths', () => {
+    const isIgnored = loadVaultPublishFilter(fixtureVault);
     assert.equal(isIgnored('_private/secret.md'), true);
     assert.equal(isIgnored('_private'), true);
 });
 
-test('loadVaultGitignore excludes vault-root README', () => {
-    const isIgnored = loadVaultGitignore(fixtureVault);
+test('loadVaultPublishFilter excludes vault-root README', () => {
+    const isIgnored = loadVaultPublishFilter(fixtureVault);
     assert.equal(isIgnored('README.md'), true);
     assert.equal(isIgnored('readme.txt'), true);
 });
 
-test('loadVaultGitignore allows publishable content', () => {
-    const isIgnored = loadVaultGitignore(fixtureVault);
+test('loadVaultPublishFilter allows publishable content', () => {
+    const isIgnored = loadVaultPublishFilter(fixtureVault);
     assert.equal(isIgnored('00-index/index.md'), false);
     assert.equal(isIgnored('00-lexique/ram.md'), false);
 });
 
-test('loadVaultGitignore respects vault .gitignore', () => {
-    const isIgnored = loadVaultGitignore(fixtureVault);
+test('loadVaultPublishFilter respects vault .gitignore', () => {
+    const isIgnored = loadVaultPublishFilter(fixtureVault);
     assert.equal(isIgnored('drafts/ignored.md'), true);
 });
 
@@ -74,12 +74,6 @@ test('publish.exclude applies even when path is not gitignored', () => {
     assert.equal(isIgnored('docs/plans/work.plan.md'), true);
     assert.equal(isIgnored('01-foundations/chapter.md'), false);
     fs.rmSync(dir, { recursive: true, force: true });
-});
-
-test('loadVaultGitignore remains compatible with loadVaultPublishFilter', () => {
-    const isIgnored = loadVaultGitignore(fixtureVault);
-    assert.equal(isIgnored('00-index/index.md'), false);
-    assert.equal(isIgnored('_private/secret.md'), true);
 });
 
 test('entryPathToVaultRelative maps engine-relative vault paths', () => {

@@ -53,7 +53,7 @@ test('collectLexiconEntries sorts alphabetically and excludes hub pages', () => 
     const lexDir = path.join(tmp, config.directory);
     fs.mkdirSync(lexDir, { recursive: true });
 
-    const write = (name, yaml) => {
+    const write = (/** @type {string} */ name, /** @type {string} */ yaml) => {
         fs.writeFileSync(
             path.join(lexDir, name),
             `---\n${yaml}\n---\n\n## Définition courte\n`,

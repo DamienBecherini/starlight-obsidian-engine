@@ -31,7 +31,7 @@ export const MANIFEST_FILENAME = '.deploy-manifest.json';
  * }} ManifestDiff */
 
 /** Files/dirs starting with `.` are never tracked. */
-const isHidden = (name) => name.startsWith('.');
+const isHidden = (/** @type {string} */ name) => name.startsWith('.');
 
 /**
  * @param {DeployKeyInput} config
@@ -104,7 +104,7 @@ export async function hashDistTree(distDir, onProgress) {
  * @returns {DeployManifest | null}
  */
 export function loadManifest(vaultRoot = resolveVaultGitRoot()) {
-    const filePath = manifestPath(vaultRoot);
+    const filePath = manifestPath(vaultRoot ?? undefined);
     if (!fs.existsSync(filePath)) return null;
     try {
         const raw = JSON.parse(fs.readFileSync(filePath, 'utf8'));
@@ -230,11 +230,12 @@ export function mergeManifestSources(local, remote, config) {
         }
         return emptyManifest(config);
     }
-    if (!localOk && remoteOk) {
+    if (!localOk) {
         console.log('ℹ️  Using remote deploy manifest (no local copy).');
-        return remoteOk;
+        // remoteOk is non-null here: the case where both are missing was handled above.
+        return /** @type {DeployManifest} */ (remoteOk);
     }
-    if (localOk && !remoteOk) return localOk;
+    if (!remoteOk) return localOk;
 
     const localTime = Date.parse(localOk.updatedAt || '') || 0;
     const remoteTime = Date.parse(remoteOk.updatedAt || '') || 0;

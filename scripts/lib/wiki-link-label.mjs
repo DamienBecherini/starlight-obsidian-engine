@@ -18,7 +18,7 @@ export function humanizeSlug(target) {
 }
 
 /**
- * @param {string} [alias]
+ * @param {string | undefined} alias
  * @param {string} target
  * @returns {string | undefined}
  */
@@ -66,7 +66,7 @@ export function buildVaultTitleIndex(vaultRoot) {
 
 /**
  * @param {string} target
- * @param {string} [alias]
+ * @param {string | undefined} alias
  * @param {Map<string, string>} titles
  * @returns {string}
  */

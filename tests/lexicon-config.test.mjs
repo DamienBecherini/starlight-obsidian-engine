@@ -6,7 +6,6 @@ import path from 'node:path';
 import test from 'node:test';
 import {
     getLexiconExcludeSlugs,
-    isLexiconEnabled,
     loadLexiconConfig,
     parseLexiconBlock,
     resolveLexiconPaths,

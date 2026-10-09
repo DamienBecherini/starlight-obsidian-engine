@@ -17,6 +17,7 @@ export function compositeLoader(...loaders) {
         load: async (context) => {
             for (let i = 0; i < loaders.length; i++) {
                 /** @type {Map<string, unknown>} */
+                /** @type {Map<string, ReturnType<typeof context.store.get>>} */
                 const preserved = new Map();
                 if (i > 0) {
                     for (const id of context.store.keys()) {

@@ -49,11 +49,6 @@ export function loadVaultPublishFilter(vaultRoot) {
     };
 }
 
-/** @deprecated Use {@link loadVaultPublishFilter}. Kept for existing imports. */
-export function loadVaultGitignore(vaultRoot) {
-    return loadVaultPublishFilter(vaultRoot);
-}
-
 /**
  * Maps an Astro content entry path (relative to the engine root) to a vault-relative POSIX path.
  * @param {string | undefined} entryFilePath
