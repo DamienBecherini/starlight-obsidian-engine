@@ -1,0 +1,36 @@
+---
+/**
+ * SiteFooterNote — site-wide note from site.config.json → footer
+ * (e.g. how the content is written, licence). Renders nothing when absent.
+ */
+import { loadSiteConfig } from '../../config/site.mjs';
+import { resolveFooterNote } from '../../config/footer.mjs';
+
+const route = Astro.locals.starlightRoute;
+const locale = route?.entryMeta?.locale ?? route?.locale ?? 'root';
+const note = resolveFooterNote(loadSiteConfig().footer, locale);
+---
+
+{note && (
+  <p class="site-footer-note">
+    {note.text}
+    {note.links.map((link) => (
+      <>
+        {' · '}
+        <a href={link.href} rel="noopener noreferrer">{link.label}</a>
+      </>
+    ))}
+  </p>
+)}
+
+<style>
+  .site-footer-note {
+    margin-top: 1.5rem;
+    font-size: var(--sl-text-xs);
+    color: var(--sl-color-gray-3);
+    line-height: 1.5;
+  }
+  .site-footer-note a {
+    color: inherit;
+  }
+</style>

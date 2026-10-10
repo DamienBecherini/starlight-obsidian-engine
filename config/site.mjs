@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { resolveVaultPath } from './vault.mjs';
+import { parseFooterBlock } from './footer.mjs';
 
 /** @type {NonNullable<import('@astrojs/starlight/types').StarlightUserConfig['sidebar']>} */
 const defaultSidebar = [
@@ -37,6 +38,7 @@ const defaultLocales = {
  * @property {string} [url] Public canonical URL (Astro `site`, sitemap, absolute links).
  * @property {string} [ogImage] Absolute URL for the og:image meta tag. If omitted, no og:image tag is injected.
  * @property {Editorial} [editorial]
+ * @property {import('./footer.mjs').FooterConfig} [footer] Site-wide footer note (see config/footer.mjs).
  * @property {string} [defaultLocale]
  * @property {import('@astrojs/starlight/types').StarlightUserConfig['locales']} [locales]
  * @property {import('@astrojs/starlight/types').StarlightUserConfig['sidebar']} [sidebar]
@@ -45,7 +47,7 @@ const defaultLocales = {
 
 /**
  * Loads site.config.json from the vault root.
- * @returns {Required<Pick<SiteConfig, 'title' | 'defaultLocale' | 'locales' | 'sidebar'>> & Pick<SiteConfig, 'url' | 'ogImage' | 'editorial' | 'social'>}
+ * @returns {Required<Pick<SiteConfig, 'title' | 'defaultLocale' | 'locales' | 'sidebar'>> & Pick<SiteConfig, 'url' | 'ogImage' | 'editorial' | 'footer' | 'social'>}
  */
 export function loadSiteConfig() {
     const vaultPath = resolveVaultPath();
@@ -74,6 +76,7 @@ export function loadSiteConfig() {
             url: parsed.url?.replace(/\/+$/, '') || undefined,
             ogImage: parsed.ogImage || undefined,
             editorial: parsed.editorial || undefined,
+            footer: parseFooterBlock(parsed.footer),
             defaultLocale: parsed.defaultLocale ?? 'root',
             locales: parsed.locales ?? defaultLocales,
             sidebar: parsed.sidebar ?? defaultSidebar,

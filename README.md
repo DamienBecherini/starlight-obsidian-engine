@@ -96,6 +96,20 @@ npm run dev:ia-on-prem          # uses VAULT_ia-on-prem (multi-vault)
 The engine reads `url` at build time and sets Astro's `site` option (sitemap, canonical URLs). Omit `url`
 if the site is local-only during development.
 
+### Optional footer note (`site.config.json`)
+
+A short site-wide note under every page (how the content is written, licence…), translated per locale:
+
+```jsonc
+"footer": {
+  "text": "Contenu rédigé avec l'assistance d'une IA, sous direction humaine.",
+  "links": [{ "label": "Licence", "href": "https://github.com/.../LICENSE" }],
+  "translations": { "en": { "text": "Written with AI assistance, under human direction.", "links": [] } }
+}
+```
+
+The default-locale note is used when a locale has no translation. Omit `footer` to render nothing.
+
 ### Optional lexicon (`site.config.json`)
 
 Vaults may declare a `lexicon` block in `site.config.json` to enable automatic index generation:
