@@ -11,9 +11,22 @@ updates:
       timezone: Europe/Paris
     open-pull-requests-limit: 5
     groups:
-      # Une seule PR pour toutes les mises à jour mineures et correctives ; les majeures restent séparées.
+      # L'écosystème Astro avance d'un bloc : chaque Starlight 0.x exige une version précise d'Astro
+      # (0.40 → Astro 6.4.5, 0.41+ → Astro 7), et @astrojs/react suit les majeures d'Astro. Une seule PR,
+      # toutes versions confondues, sinon les PR séparées échouent chacune sur les peer dependencies.
+      astro:
+        patterns: ["astro", "@astrojs/*"]
+      # Une seule PR pour les autres mises à jour mineures et correctives ; les majeures restent séparées.
       npm-mineures:
         update-types: [minor, patch]
+        exclude-patterns: ["astro", "@astrojs/*"]
+    ignore:
+      # TypeScript 7 (réécriture en Go) : @astrojs/check n'accepte que ^5 || ^6. À lever quand il suivra.
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
+      # mermaid 12 : astro-mermaid n'accepte que ^10 || ^11. À lever quand il suivra.
+      - dependency-name: mermaid
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: /
