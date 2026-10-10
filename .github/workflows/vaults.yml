@@ -72,13 +72,15 @@ jobs:
         working-directory: engine
         run: npm ci --ignore-scripts
 
-      - name: Auditer les wiki-links
+      # En avertissement seulement : ce workflow surveille le moteur, pas le contenu. Les liens cassés
+      # d'un vault relèvent de son propre CI ; ici ils ne doivent pas masquer le verdict du build.
+      - name: Auditer les wiki-links (informatif)
         if: env.ACTIF == 'true'
         working-directory: engine
         env:
           VAULT_PATH: ${{ github.workspace }}/vault
           FORCE_VAULT_PATH: "1"
-        run: npm run audit:links
+        run: npm run audit:links -- --warn-only
 
       - name: Build complet
         if: env.ACTIF == 'true'
