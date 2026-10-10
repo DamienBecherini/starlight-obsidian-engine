@@ -59,6 +59,18 @@ export function stripFrontmatter(content) {
 }
 
 /**
+ * Removes fenced code blocks (``` or ~~~) and inline code spans, so that `[[...]]` or `[x](y)`
+ * written inside code (e.g. a PHP array `[['sku' => 1]]`) are not mistaken for links.
+ * @param {string} body
+ * @returns {string}
+ */
+export function stripCodeBlocks(body) {
+    return body
+        .replace(/^[ \t]*(`{3,}|~{3,})[^\n]*\n[\s\S]*?^[ \t]*\1[ \t]*$/gm, '')
+        .replace(/`[^`\n]*`/g, '');
+}
+
+/**
  * @param {string} body
  * @returns {string[]}
  */
@@ -172,12 +184,12 @@ function listPublishedMarkdownFiles(vaultRoot) {
 }
 
 /**
- * Wiki-link and internal Markdown link targets found in a file body (frontmatter excluded).
+ * Wiki-link and internal Markdown link targets found in a file body (frontmatter and code excluded).
  * @param {string} full
  * @returns {string[]}
  */
 function readLinkTargets(full) {
-    const body = stripFrontmatter(fs.readFileSync(full, 'utf-8'));
+    const body = stripCodeBlocks(stripFrontmatter(fs.readFileSync(full, 'utf-8')));
     return [...extractWikiTargets(body), ...extractMarkdownInternalTargets(body)];
 }
 

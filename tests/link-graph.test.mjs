@@ -16,6 +16,7 @@ import {
     resolveLinkTargetPath,
     buildPublishedIndex,
     collectUnresolvedLinks,
+    stripCodeBlocks,
 } from '../scripts/lib/link-graph.mjs';
 import { defaultLinkGraphPath, loadLinkGraph, loadLinkGraphFromFile } from '../scripts/lib/link-graph-data.mjs';
 import { projectRoot } from '../config/vault.mjs';
@@ -32,6 +33,23 @@ test('extractWikiTargets and markdown internal links', () => {
     const body = '[[page-b|B]] and [x](/page-c/) and [rel](../page-d.md).';
     assert.deepEqual(extractWikiTargets(body), ['page-b']);
     assert.deepEqual(extractMarkdownInternalTargets(body), ['/page-c/', '../page-d.md']);
+});
+
+test('stripCodeBlocks removes fenced blocks and inline code so code is not read as links', () => {
+    const body = [
+        '[[page-b]]',
+        '```php',
+        "$products = Products::fromArray([['sku' => 'BOOK-01', 'qty' => 2]]);",
+        '[[not-a-link]] and [x](/nope/)',
+        '```',
+        '  ~~~',
+        '[[indented-fence]]',
+        '  ~~~',
+        'Inline `[[inline]]` and `[y](/nope-too/)` then [[page-c]] and [z](/page-d/).',
+    ].join('\n');
+    const stripped = stripCodeBlocks(body);
+    assert.deepEqual(extractWikiTargets(stripped), ['page-b', 'page-c']);
+    assert.deepEqual(extractMarkdownInternalTargets(stripped), ['/page-d/']);
 });
 
 test('resolveLinkTargetPath resolves relative markdown paths', () => {
