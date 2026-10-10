@@ -42,11 +42,11 @@
     "test:build:local": "node -e \"process.env.PAGEFIND='0'; import('./tests/smoke-build.mjs')\""
   },
   "dependencies": {
-    "@astrojs/react": "^5.0.6",
+    "@astrojs/react": "^7.0.1",
     "@astrojs/starlight": "^0.39.2",
     "@types/react": "^19.2.15",
     "@types/react-dom": "^19.2.3",
-    "astro": "^6.3.1",
+    "astro": "^7.3.6",
     "astro-mermaid": "^2.0.1",
     "basic-ftp": "^6.0.1",
     "ignore": "^7.0.5",
