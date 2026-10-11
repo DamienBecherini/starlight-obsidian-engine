@@ -1,0 +1,30 @@
+---
+/**
+ * Localized 404 pages (`/<locale>/404/`) for every non-root locale of site.config.json.
+ * Starlight only builds the root `404.html`; serve these with site.config.json →
+ * `apache.notFoundPages` (`{ "/en/": "/en/404/" }`). Kept out of the sitemap (status-code page)
+ * and out of search (pagefind: false).
+ */
+import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
+import { loadSiteConfig } from '../../../config/site.mjs';
+
+export function getStaticPaths() {
+    const { locales = {} } = loadSiteConfig();
+    return Object.entries(locales)
+        .filter(([locale]) => locale !== 'root')
+        .map(([locale, value]) => ({ params: { locale }, props: { lang: value?.lang ?? locale } }));
+}
+
+const { lang } = Astro.props;
+const tagline = Astro.locals.t('404.text', { lng: lang });
+---
+
+<StarlightPage
+    frontmatter={{
+        title: '404',
+        template: 'splash',
+        editUrl: false,
+        pagefind: false,
+        hero: { tagline, actions: [] },
+    }}
+/>
