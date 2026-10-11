@@ -10,8 +10,8 @@
  * @typedef {Object} ApacheConfig
  * @property {boolean} forceHttps 301-redirect every http:// request to https://.
  * @property {string | null} notFoundPage Site path served for 404s (`ErrorDocument 404`), e.g. `/404.html`.
- * @property {LocalizedNotFoundPage[]} notFoundPages Per-prefix 404 pages (e.g. one per locale), overriding `notFoundPage`.
- * @property {number | null} hstsMaxAge `Strict-Transport-Security` max-age in seconds (HTTPS responses only), or null.
+ * @property {LocalizedNotFoundPage[]} [notFoundPages] Per-prefix 404 pages (e.g. one per locale), overriding `notFoundPage`.
+ * @property {number | null} [hstsMaxAge] `Strict-Transport-Security` max-age in seconds (HTTPS responses only), or null.
  */
 
 /** Root-relative path, no whitespace, quotes or control characters (safe in an Apache directive). */
@@ -88,6 +88,6 @@ export function parseApacheBlock(raw) {
         hstsMaxAge: parseHsts(hsts),
     };
     const enabled =
-        config.forceHttps || config.notFoundPage || config.notFoundPages.length > 0 || config.hstsMaxAge;
+        config.forceHttps || config.notFoundPage || (config.notFoundPages?.length ?? 0) > 0 || config.hstsMaxAge;
     return enabled ? config : null;
 }
