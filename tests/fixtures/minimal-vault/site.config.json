@@ -1,5 +1,6 @@
 {
   "title": "Test Vault",
+  "url": "https://docs.example.com",
   "defaultLocale": "root",
   "locales": {
     "root": { "label": "Français", "lang": "fr" }

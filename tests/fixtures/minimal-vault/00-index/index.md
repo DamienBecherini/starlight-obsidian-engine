@@ -1,5 +1,5 @@
 ---
-title: Test Index
+title: 🧪 Test Index
 description: Minimal fixture page for smoke build.
 ---
 

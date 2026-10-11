@@ -54,6 +54,20 @@ try {
     assert.match(html, /class="starlight-aside starlight-aside--note"/);
     assert.match(html, /Objectif/);
     assert.match(html, /Smoke callout content\./);
+    // SEO: one JSON-LD block, a single twitter:card, leading emoji stripped from <title> only.
+    assert.equal(html.match(/<script type="application\/ld\+json">/g)?.length, 1, 'one JSON-LD block');
+    assert.match(html, /"@type":"Article","headline":"Test Index"/);
+    assert.equal(html.match(/name="twitter:card"/g)?.length ?? 0, 1, 'a single twitter:card');
+    assert.match(html, /<title>Test Index \| Test Vault<\/title>/);
+    assert.match(html, /<meta property="og:title" content="Test Index"/);
+    assert.match(html, /<h1[^>]*>🧪 Test Index<\/h1>/);
+
+    const robots = path.join(distDir, 'robots.txt');
+    assert.ok(fs.existsSync(robots), `Expected ${robots} to exist`);
+    assert.equal(
+        fs.readFileSync(robots, 'utf8'),
+        'User-agent: *\nAllow: /\n\nSitemap: https://docs.example.com/sitemap-index.xml\n',
+    );
 
     const distPaths = listRelativePaths(distDir);
     const forbidden = distPaths.filter(

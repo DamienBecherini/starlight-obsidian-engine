@@ -32,4 +32,6 @@ export const starlightIntegration = starlight({
     social: site.social,
     sidebar: site.sidebar,
     pagefind: pagefindEnabled,
+    // Strips the leading emoji from <title> / og:title (not from the H1 or the sidebar).
+    routeMiddleware: './src/starlight-route-data.mjs',
 });
