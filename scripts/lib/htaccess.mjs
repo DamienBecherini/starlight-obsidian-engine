@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * Apache `.htaccess` site rules from site.config.json → `apache` (HTTPS redirect, 404 page).
+ * Apache `.htaccess` site rules from site.config.json → `apache` (HTTPS redirect, 404 pages, HSTS).
  * Deploy never uploads dotfiles, so these rules reach the server through `auth:install`
  * (prepended to the Basic Auth rules), `auth:remove` (uploaded alone) or `htaccess:install`.
  */
@@ -17,7 +17,12 @@ const HEADER = '# Site rules generated from site.config.json "apache" (starlight
  * @returns {string}
  */
 export function buildSiteHtaccess(apache) {
-    if (!apache || (!apache.forceHttps && !apache.notFoundPage)) return '';
+    if (
+        !apache ||
+        (!apache.forceHttps && !apache.notFoundPage && !apache.notFoundPages?.length && !apache.hstsMaxAge)
+    ) {
+        return '';
+    }
     const lines = [HEADER];
     if (apache.forceHttps) {
         lines.push(
@@ -33,6 +38,24 @@ export function buildSiteHtaccess(apache) {
     }
     if (apache.notFoundPage) {
         lines.push('', '# Serve the site\'s own 404 page.', `ErrorDocument 404 ${apache.notFoundPage}`);
+    }
+    for (const { prefix, page } of apache.notFoundPages ?? []) {
+        lines.push(
+            '',
+            `# 404 page for ${prefix} (e.g. one per locale).`,
+            `<If "%{REQUEST_URI} =~ m#^${prefix}#">`,
+            `    ErrorDocument 404 ${page}`,
+            '</If>',
+        );
+    }
+    if (apache.hstsMaxAge) {
+        lines.push(
+            '',
+            '# HSTS: browsers stay on https:// for this host (HTTPS responses only; no includeSubDomains or preload).',
+            '<IfModule mod_headers.c>',
+            `    Header always set Strict-Transport-Security "max-age=${apache.hstsMaxAge}" "expr=${HTTPS_EXPRESSION}"`,
+            '</IfModule>',
+        );
     }
     return `${lines.join('\n')}\n`;
 }
@@ -54,7 +77,8 @@ export function mergeHtaccess(...sections) {
  */
 export function describeApacheConfig(apache) {
     if (!apache) return 'none (no apache block in site.config.json)';
-    return `forceHttps=${apache.forceHttps}, notFoundPage=${apache.notFoundPage ?? 'none'}`;
+    const localized = apache.notFoundPages?.map(({ prefix, page }) => `${prefix}→${page}`).join(' ') || 'none';
+    return `forceHttps=${apache.forceHttps}, notFoundPage=${apache.notFoundPage ?? 'none'}, notFoundPages=${localized}, hsts=${apache.hstsMaxAge ?? 'off'}`;
 }
 
 /** Basic Auth settings that mean `.htaccess` is owned by `auth:install`. */

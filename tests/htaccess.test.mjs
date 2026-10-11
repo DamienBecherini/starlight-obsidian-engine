@@ -10,6 +10,8 @@ import {
 } from '../scripts/lib/htaccess.mjs';
 import { buildAuthHtaccessFile, buildHtaccess } from '../scripts/lib/auth.mjs';
 
+const NL = '\n';
+
 const auth = {
     user: 'admin',
     password: 'password',
@@ -30,10 +32,14 @@ test('parseApacheBlock keeps valid options and drops unsafe 404 paths', () => {
     assert.deepEqual(parseApacheBlock({ forceHttps: true, notFoundPage: ' /404.html ' }), {
         forceHttps: true,
         notFoundPage: '/404.html',
+        notFoundPages: [],
+        hstsMaxAge: null,
     });
     assert.deepEqual(parseApacheBlock({ notFoundPage: '/404.html' }), {
         forceHttps: false,
         notFoundPage: '/404.html',
+        notFoundPages: [],
+        hstsMaxAge: null,
     });
     const warn = console.warn;
     console.warn = () => {};
@@ -41,6 +47,8 @@ test('parseApacheBlock keeps valid options and drops unsafe 404 paths', () => {
         assert.deepEqual(parseApacheBlock({ forceHttps: true, notFoundPage: '404.html' }), {
             forceHttps: true,
             notFoundPage: null,
+            notFoundPages: [],
+            hstsMaxAge: null,
         });
         assert.equal(parseApacheBlock({ notFoundPage: '/a b"\nRewriteEngine Off' }), null);
     } finally {
@@ -103,11 +111,58 @@ test('describeApacheConfig and authEnvKeysSet support the scripts', () => {
     assert.match(describeApacheConfig(null), /^none/);
     assert.equal(
         describeApacheConfig({ forceHttps: true, notFoundPage: null }),
-        'forceHttps=true, notFoundPage=none',
+        'forceHttps=true, notFoundPage=none, notFoundPages=none, hsts=off',
     );
     assert.deepEqual(authEnvKeysSet({}), []);
     assert.deepEqual(
         authEnvKeysSet({ AUTH_USER: 'reader', AUTH_PASSWORD: ' ', AUTH_SERVER_ROOT: '/home/u' }),
         ['AUTH_USER', 'AUTH_SERVER_ROOT'],
+    );
+});
+
+test('parseApacheBlock reads per-prefix 404 pages and HSTS', () => {
+    const config = parseApacheBlock({
+        notFoundPage: '/404.html',
+        notFoundPages: { '/en/': '/en/404/' },
+        hsts: true,
+    });
+    assert.deepEqual(config?.notFoundPages, [{ prefix: '/en/', page: '/en/404/' }]);
+    assert.equal(config?.hstsMaxAge, 31536000);
+    assert.equal(parseApacheBlock({ hsts: 600 })?.hstsMaxAge, 600);
+    const warn = console.warn;
+    console.warn = () => {};
+    try {
+        assert.equal(parseApacheBlock({ hsts: -1 }), null);
+        assert.equal(parseApacheBlock({ hsts: '1y' }), null);
+        assert.equal(parseApacheBlock({ notFoundPages: { '/en': '/en/404/' } }), null);
+        assert.equal(parseApacheBlock({ notFoundPages: { '/': '/x/' } }), null);
+        assert.equal(parseApacheBlock({ notFoundPages: { '/en/': '/a#b' } }), null);
+    } finally {
+        console.warn = warn;
+    }
+});
+
+test('buildSiteHtaccess emits per-prefix 404 pages and HSTS on HTTPS responses only', () => {
+    const rules = buildSiteHtaccess({
+        forceHttps: true,
+        notFoundPage: '/404.html',
+        notFoundPages: [{ prefix: '/en/', page: '/en/404/' }],
+        hstsMaxAge: 31536000,
+    });
+    assert.ok(rules.includes('ErrorDocument 404 /404.html'));
+    assert.ok(rules.includes(['<If "%{REQUEST_URI} =~ m#^/en/#">', '    ErrorDocument 404 /en/404/', '</If>'].join(NL)));
+    assert.ok(rules.indexOf('ErrorDocument 404 /404.html') < rules.indexOf('<If "%{REQUEST_URI}'));
+    assert.ok(
+        rules.includes(
+            [
+                '<IfModule mod_headers.c>',
+                `    Header always set Strict-Transport-Security "max-age=31536000" "expr=%{HTTPS} == 'on'`,
+            ].join(NL),
+        ),
+    );
+    assert.doesNotMatch(rules, /max-age=\d+;/, 'host-only HSTS: no includeSubDomains or preload directive');
+    assert.equal(
+        buildSiteHtaccess({ forceHttps: false, notFoundPage: null, notFoundPages: [], hstsMaxAge: 600 }).includes('max-age=600'),
+        true,
     );
 });

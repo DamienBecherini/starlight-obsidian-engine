@@ -117,11 +117,18 @@ On an Apache host (o2switch, cPanel…), the engine can generate `.htaccess` sit
 ```jsonc
 "apache": {
   "forceHttps": true,          // 301 http:// → https:// (X-Forwarded-Proto guard against proxy loops)
-  "notFoundPage": "/404.html"  // ErrorDocument 404: serve the site's own 404 page
+  "notFoundPage": "/404.html", // ErrorDocument 404: serve the site's own 404 page
+  "notFoundPages": { "/en/": "/en/404/" }, // per-prefix 404 page (overrides notFoundPage under /en/)
+  "hsts": true                 // Strict-Transport-Security, HTTPS responses only; true = 1 year, or seconds
 }
 ```
 
-Omit the block (or leave both options off) and nothing is generated — existing behaviour. Deploy never
+The engine builds a localized 404 page at `/<locale>/404/` for every non-root locale (Starlight only builds
+the root `404.html`); point `notFoundPages` at them. They stay out of the sitemap and of search.
+HSTS is host-only (no `includeSubDomains`, no `preload`): browsers that saw it keep using https:// for this host
+until `max-age` expires, so enable it only once https works everywhere.
+
+Omit the block (or leave every option off) and nothing is generated — existing behaviour. Deploy never
 uploads dotfiles, so the rules reach the server through a dedicated command:
 
 | Site | Command | `.htaccess` content |
