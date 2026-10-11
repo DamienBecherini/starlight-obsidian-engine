@@ -17,6 +17,23 @@ export function escapeTableCell(cell) {
 }
 
 /**
+ * Formats a frontmatter value as a YAML scalar: plain when safe, double-quoted (JSON escaping,
+ * valid YAML) when it contains `: `, ` #`, a leading indicator character or a trailing colon.
+ * @param {string} value
+ * @returns {string}
+ */
+export function yamlScalar(value) {
+    const text = String(value ?? '');
+    const unsafe =
+        text === '' ||
+        text !== text.trim() ||
+        /: |\s#|:$/.test(text) ||
+        /^[-?:,[\]{}#&*!|>'"%@`]/.test(text) ||
+        /[\r\n]/.test(text);
+    return unsafe ? JSON.stringify(text) : text;
+}
+
+/**
  * Minimal YAML frontmatter parse for lexicon entries (title, description, tags).
  * @param {string} raw
  * @returns {{ title?: string, description?: string, tags: string[] }}
@@ -179,8 +196,8 @@ export function renderIndexMarkdown(entries, config) {
 
     return [
         '---',
-        `title: ${config.index.title}`,
-        `description: ${config.index.description}`,
+        `title: ${yamlScalar(config.index.title)}`,
+        `description: ${yamlScalar(config.index.description)}`,
         '---',
         '',
         config.index.intro,
@@ -235,8 +252,8 @@ export function renderIndexMarkdownWithMeta(entries, meta, directory) {
     });
     return [
         '---',
-        `title: ${meta.title}`,
-        `description: ${meta.description}`,
+        `title: ${yamlScalar(meta.title)}`,
+        `description: ${yamlScalar(meta.description)}`,
         '---',
         '',
         meta.intro,

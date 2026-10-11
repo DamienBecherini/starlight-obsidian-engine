@@ -3,9 +3,11 @@ import crypto from 'node:crypto';
 import { Readable } from 'node:stream';
 import { Client as FtpClient } from 'basic-ftp';
 import SftpClient from 'ssh2-sftp-client';
+import { HTTPS_EXPRESSION, buildSiteHtaccess, mergeHtaccess } from './htaccess.mjs';
 
 /**
  * @typedef {import('./deploy.mjs').DeployConfig} DeployConfig
+ * @typedef {import('../../config/apache.mjs').ApacheConfig} ApacheConfig
  * @typedef {{
  *   user: string,
  *   password: string,
@@ -139,17 +141,30 @@ export function buildHtpasswd(auth) {
 
 /**
  * @param {AuthConfig} auth
+ * @param {{ httpsOnly?: boolean }} [options] `httpsOnly`: ask for credentials over HTTPS only, so
+ *   the http:// → https:// redirect (site rules) happens before any password is sent in clear.
  * @returns {string} `.htaccess` content (Apache 2.4 Basic Auth).
  */
-export function buildHtaccess(auth) {
+export function buildHtaccess(auth, { httpsOnly = false } = {}) {
     const authUserFile = `${auth.serverRoot}/${auth.htpasswdName}`;
     // AuthName must be quoted; escape any embedded quotes in the realm.
     const realm = auth.realm.replace(/"/g, '\\"');
-    return [
+    const directives = [
         'AuthType Basic',
         `AuthName "${realm}"`,
         `AuthUserFile ${authUserFile}`,
         'Require valid-user',
+    ];
+    const authBlock = httpsOnly
+        ? [
+              '# Credentials over HTTPS only; plain http:// is redirected by the site rules above.',
+              `<If "${HTTPS_EXPRESSION}">`,
+              ...directives.map((line) => `    ${line}`),
+              '</If>',
+          ]
+        : directives;
+    return [
+        ...authBlock,
         '',
         '# Never serve the auth files themselves.',
         '<FilesMatch "^\\.ht">',
@@ -157,6 +172,19 @@ export function buildHtaccess(auth) {
         '</FilesMatch>',
         '',
     ].join('\n');
+}
+
+/**
+ * Full `.htaccess` for a protected site: site rules (site.config.json `apache`) then Basic Auth.
+ * @param {AuthConfig} auth
+ * @param {ApacheConfig | null | undefined} apache
+ * @returns {string}
+ */
+export function buildAuthHtaccessFile(auth, apache) {
+    return mergeHtaccess(
+        buildSiteHtaccess(apache),
+        buildHtaccess(auth, { httpsOnly: apache?.forceHttps === true }),
+    );
 }
 
 /**
@@ -198,7 +226,7 @@ async function withFtps(config, fn) {
             console.error('❌ FTPS failed: TLS certificate does not match the FTP hostname.');
             console.error('   Set DEPLOY_FTPS_INSECURE=true in the vault .env (FileZilla ignores this).');
         } else {
-            console.error('❌ FTPS auth operation failed:', error);
+            console.error('❌ FTPS operation failed:', error);
         }
         process.exit(1);
     } finally {
@@ -225,7 +253,7 @@ async function withSftp(config, fn) {
         console.log(`   Target: sftp://${config.host}:${config.port}${base}`);
         await fn(sftp, base);
     } catch (error) {
-        console.error('❌ SFTP auth operation failed:', error);
+        console.error('❌ SFTP operation failed:', error);
         process.exit(1);
     } finally {
         await sftp.end();
@@ -233,47 +261,69 @@ async function withSftp(config, fn) {
 }
 
 /**
- * Generates and uploads `.htpasswd` then `.htaccess` to the site root.
+ * Uploads in-memory files to the site root, in order.
  * @param {DeployConfig} config
- * @param {AuthConfig} auth
+ * @param {{ name: string, content: string }[]} files
  */
-export async function installAuth(config, auth) {
-    const htpasswd = buildHtpasswd(auth);
-    const htaccess = buildHtaccess(auth);
-
+export async function uploadRootFiles(config, files) {
     if (config.protocol === 'ftps') {
         await withFtps(config, async (client) => {
-            // Order matters: upload htpasswd first so .htaccess never points at a missing file.
-            await client.uploadFrom(Readable.from(Buffer.from(htpasswd, 'utf8')), auth.htpasswdName);
-            console.log(`   ↑ ${auth.htpasswdName}`);
-            await client.uploadFrom(Readable.from(Buffer.from(htaccess, 'utf8')), '.htaccess');
-            console.log('   ↑ .htaccess');
+            for (const file of files) {
+                await client.uploadFrom(Readable.from(Buffer.from(file.content, 'utf8')), file.name);
+                console.log(`   ↑ ${file.name}`);
+            }
         });
     } else {
         await withSftp(config, async (sftp, base) => {
-            await sftp.put(Buffer.from(htpasswd, 'utf8'), joinRemote(base, auth.htpasswdName));
-            console.log(`   ↑ ${auth.htpasswdName}`);
-            await sftp.put(Buffer.from(htaccess, 'utf8'), joinRemote(base, '.htaccess'));
-            console.log('   ↑ .htaccess');
+            for (const file of files) {
+                await sftp.put(Buffer.from(file.content, 'utf8'), joinRemote(base, file.name));
+                console.log(`   ↑ ${file.name}`);
+            }
         });
     }
 }
 
 /**
- * Removes `.htaccess` (and optionally `.htpasswd`) from the site root.
+ * Generates and uploads `.htpasswd` then `.htaccess` (site rules + Basic Auth) to the site root.
  * @param {DeployConfig} config
  * @param {AuthConfig} auth
- * @param {{ keepHtpasswd?: boolean }} [options]
+ * @param {{ apache?: ApacheConfig | null }} [options] site.config.json `apache` block.
  */
-export async function removeAuth(config, auth, { keepHtpasswd = false } = {}) {
+export async function installAuth(config, auth, { apache = null } = {}) {
+    // Order matters: upload htpasswd first so .htaccess never points at a missing file.
+    await uploadRootFiles(config, [
+        { name: auth.htpasswdName, content: buildHtpasswd(auth) },
+        { name: '.htaccess', content: buildAuthHtaccessFile(auth, apache) },
+    ]);
+}
+
+/**
+ * Removes Basic Auth from the site root. With site rules configured (`apache`), `.htaccess` is
+ * replaced by the site rules alone instead of being deleted.
+ * @param {DeployConfig} config
+ * @param {AuthConfig} auth
+ * @param {{ keepHtpasswd?: boolean, apache?: ApacheConfig | null }} [options]
+ */
+export async function removeAuth(config, auth, { keepHtpasswd = false, apache = null } = {}) {
+    const siteRules = buildSiteHtaccess(apache);
     if (config.protocol === 'ftps') {
         await withFtps(config, async (client) => {
-            await tryRemoveFtps(client, '.htaccess');
+            if (siteRules) {
+                await client.uploadFrom(Readable.from(Buffer.from(siteRules, 'utf8')), '.htaccess');
+                console.log('   ↑ .htaccess (site rules only)');
+            } else {
+                await tryRemoveFtps(client, '.htaccess');
+            }
             if (!keepHtpasswd) await tryRemoveFtps(client, auth.htpasswdName);
         });
     } else {
         await withSftp(config, async (sftp, base) => {
-            await tryRemoveSftp(sftp, joinRemote(base, '.htaccess'));
+            if (siteRules) {
+                await sftp.put(Buffer.from(siteRules, 'utf8'), joinRemote(base, '.htaccess'));
+                console.log('   ↑ .htaccess (site rules only)');
+            } else {
+                await tryRemoveSftp(sftp, joinRemote(base, '.htaccess'));
+            }
             if (!keepHtpasswd) await tryRemoveSftp(sftp, joinRemote(base, auth.htpasswdName));
         });
     }

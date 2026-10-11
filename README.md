@@ -110,6 +110,43 @@ A short site-wide note under every page (how the content is written, licence…)
 
 The default-locale note is used when a locale has no translation. Omit `footer` to render nothing.
 
+### Optional Apache site rules (`site.config.json`)
+
+On an Apache host (o2switch, cPanel…), the engine can generate `.htaccess` site rules:
+
+```jsonc
+"apache": {
+  "forceHttps": true,          // 301 http:// → https:// (X-Forwarded-Proto guard against proxy loops)
+  "notFoundPage": "/404.html"  // ErrorDocument 404: serve the site's own 404 page
+}
+```
+
+Omit the block (or leave both options off) and nothing is generated — existing behaviour. Deploy never
+uploads dotfiles, so the rules reach the server through a dedicated command:
+
+| Site | Command | `.htaccess` content |
+|------|---------|---------------------|
+| Public | `npm run htaccess:install` | site rules only (refuses to run when `AUTH_USER` / `AUTH_PASSWORD` / `AUTH_SERVER_ROOT` is set) |
+| Private | `npm run auth:install` | site rules, then Basic Auth (see [Private site](#private-site-basic-auth)) |
+| Going public | `npm run auth:remove` | replaced by the site rules alone instead of being deleted |
+
+Run them again after changing the `apache` block. Vaults call engine scripts through their own
+`scripts/delegate.mjs`: add `htaccess-install` to its allowed commands and a
+`"htaccess:install": "node scripts/delegate.mjs htaccess-install"` npm script to use it from the vault.
+
+## SEO
+
+- **`robots.txt`** — generated at build time (`src/pages/robots.txt.ts`): `User-agent: *` / `Allow: /`, plus
+  `Sitemap: <url>/sitemap-index.xml` when `url` is set. Do not ship a `robots.txt` in the vault `public/`.
+- **JSON-LD** — every page carries one `<script type="application/ld+json">`: a `WebSite` on the splash/home
+  page, an `Article` elsewhere (headline, description, `inLanguage`, canonical `url`, `dateModified` from
+  frontmatter `last_modified`, `author` from `editorial.hitl`, `isPartOf` the site). `<` is escaped as `<`.
+- **Titles** — a leading emoji in a page title is kept in the H1 and the sidebar but stripped from `<title>`,
+  `og:title` and `twitter:title` (Starlight route middleware `src/starlight-route-data.mjs`), so search results
+  spend their width on words.
+- **Social tags** — Starlight already emits `twitter:card`; `Head.astro` only adds what is missing
+  (`og:image` / `twitter:image` from `ogImage`, `author`, `article:*`).
+
 ### Optional lexicon (`site.config.json`)
 
 Vaults may declare a `lexicon` block in `site.config.json` to enable automatic index generation:
@@ -170,7 +207,8 @@ npm run link-graph:build
 | `npm run deploy:<name>` | Build + deploy for a registered vault (e.g. `deploy:ia-on-prem`, `deploy:craft`) |
 | `npm run upload` | Remote upload only (existing `dist/`, no git, no build) |
 | `npm run auth:install` | Protect the live site with Apache Basic Auth (see [Private site](#private-site-basic-auth)) |
-| `npm run auth:remove` | Remove Basic Auth (make the site public again) |
+| `npm run auth:remove` | Remove Basic Auth (make the site public again; keeps the `apache` site rules) |
+| `npm run htaccess:install` | Upload the `apache` site rules as `.htaccess` (public site; see [Apache site rules](#optional-apache-site-rules-siteconfigjson)) |
 | `npm test` | Unit tests (deploy manifest, gitignore, link-graph, lexicon, auth, CLI flags) |
 | `npm run test:build` | Smoke build using `tests/fixtures/minimal-vault/` |
 
@@ -200,7 +238,9 @@ npm run test:build
 
 **Covered:** incremental deploy manifest diff, vault gitignore / `_private` filtering, vault docs
 loader exclusion, vault path override (`FORCE_VAULT_PATH`), deploy CLI flags, deploy config
-parsing (success paths), Apache `apr1` / htpasswd generation, upload progress formatting.
+parsing (success paths), Apache `apr1` / htpasswd generation, `.htaccess` site rules and `apache` block
+parsing, robots.txt, JSON-LD and title emoji stripping, upload progress formatting. The smoke build also
+checks `robots.txt`, the JSON-LD block, a single `twitter:card` and the emoji-free `<title>`.
 
 **Not covered (by design):** real FTPS/SFTP transfers, interactive `publish.mjs` git prompts,
 browser-side Mermaid enhancer. CI runs `npm test` and `npm run test:build` on push/PR
@@ -417,7 +457,7 @@ AUTH_REALM=IA On-Premise          # text in the browser login popup
 
 ```bash
 npm run auth:install                 # generate + upload .htpasswd then .htaccess
-npm run auth:remove                  # delete .htaccess and .htpasswd
+npm run auth:remove                  # delete .htaccess (or reset it to the apache site rules) and .htpasswd
 npm run auth:remove -- --keep-htpasswd   # delete only .htaccess
 npm run auth:remove -- --yes             # skip the confirmation prompt
 ```
@@ -434,6 +474,9 @@ Notes:
 - `AUTH_SERVER_ROOT` is the **real absolute path** used for `AuthUserFile` (Apache reads the real
   filesystem, not the chroot view), distinct from `DEPLOY_REMOTE_PATH=/` used by FTP.
 - Files are streamed from memory — the hashed password is never written to local disk.
+- With an `apache` block in `site.config.json`, its site rules are prepended to the Basic Auth rules. With
+  `forceHttps`, credentials are only requested over HTTPS (`<If>` on the same condition as the redirect),
+  so plain `http://` is redirected before any password is sent in clear.
 
 ### Notes & limitations
 
@@ -532,6 +575,8 @@ $env:ANALYZE="true"; npm run build; Remove-Item Env:\ANALYZE
 ```
 config/               engine config (vault resolution, site config loader, integrations, markdown, Starlight)
 scripts/              vault linking, pre-dev/build checks, publish (FTPS/SFTP)
+src/pages/            robots.txt endpoint
+src/starlight-route-data.mjs  Starlight route middleware (emoji-free <title>)
 src/components/       Head, Footer, MermaidEnhancer, PageSidebar, PageBacklinks, VerifiedBadge overrides
 src/styles/           Mermaid, KaTeX, backlinks, footnotes, external-links Starlight overrides
 src/generated/        link-graph.json (gitignored; rebuilt at predev/prebuild)
