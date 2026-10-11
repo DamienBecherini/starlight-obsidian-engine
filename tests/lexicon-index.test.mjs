@@ -11,6 +11,7 @@ import {
     parseLexiconFrontmatter,
     renderIndexMarkdown,
     writeLexiconIndex,
+    yamlScalar,
 } from '../scripts/lib/lexicon-index.mjs';
 
 /** @returns {import('../config/lexicon.mjs').LexiconConfigEnabled} */
@@ -139,4 +140,22 @@ test('writeLexiconIndex respects vault gitignore', () => {
     const out = fs.readFileSync(path.join(lexDir, config.indexPage), 'utf-8');
     assert.match(out, /Public/);
     assert.doesNotMatch(out, /Secret/);
+});
+
+test('yamlScalar quotes values that would break YAML', () => {
+    assert.equal(yamlScalar('Index du lexique'), 'Index du lexique');
+    assert.equal(yamlScalar("Index de l'IA on-premise, de LLM à VRAM."), "Index de l'IA on-premise, de LLM à VRAM.");
+    assert.equal(yamlScalar('Index : LLM, VRAM'), '"Index : LLM, VRAM"');
+    assert.equal(yamlScalar('entries: LLM'), '"entries: LLM"');
+    assert.equal(yamlScalar('"quoted" start'), '"\\"quoted\\" start"');
+    assert.equal(yamlScalar('- dash'), '"- dash"');
+    assert.equal(yamlScalar('a # comment'), '"a # comment"');
+});
+
+test('renderIndexMarkdown writes a parseable description containing a colon', () => {
+    const config = zthLikeConfig({
+        index: { title: 'Index', description: 'Index : LLM, VRAM', intro: 'Generated.' },
+    });
+    const md = renderIndexMarkdown([], config);
+    assert.match(md, /^description: "Index : LLM, VRAM"$/m);
 });
