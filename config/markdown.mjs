@@ -5,8 +5,34 @@ import remarkMath from 'remark-math';
 import rehypeExternalLinks from 'rehype-external-links';
 import rehypeKatex from 'rehype-katex';
 import { remarkObsidianCallouts } from './remark/obsidian-callouts.mjs';
+import { rehypeLexiconTooltips } from './rehype/lexicon-tooltips.mjs';
+import { isLexiconEnabled, loadLexiconConfig } from './lexicon.mjs';
+import { loadSiteConfig } from './site.mjs';
+import { projectRoot, resolveVaultGitRoot } from './vault.mjs';
 
-/** Markdown processor configuration (wiki links, external links, math equations). */
+const vaultRoot = resolveVaultGitRoot();
+const lexicon = loadLexiconConfig(vaultRoot);
+
+/**
+ * Lexicon tooltips (`lexicon.tooltips`, on by default when the lexicon is enabled).
+ * @type {Array<[any, any]>}
+ */
+const lexiconTooltipPlugins =
+    isLexiconEnabled(lexicon) && lexicon.tooltips
+        ? [
+              [
+                  rehypeLexiconTooltips,
+                  {
+                      config: lexicon,
+                      vaultRoot,
+                      engineRoot: projectRoot,
+                      localeKeys: Object.keys(loadSiteConfig().locales ?? {}).filter((key) => key !== 'root'),
+                  },
+              ],
+          ]
+        : [];
+
+/** Markdown processor configuration (wiki links, external links, math equations, lexicon tooltips). */
 export const markdown = {
     processor: unified({
         remarkPlugins: [
@@ -42,6 +68,7 @@ export const markdown = {
                     },
                 },
             ],
+            ...lexiconTooltipPlugins,
         ],
     }),
 };

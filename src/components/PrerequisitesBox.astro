@@ -1,0 +1,81 @@
+---
+/**
+ * PrerequisitesBox — "📚 Before reading this page" box built from the optional `prerequisites`
+ * frontmatter (vault paths in default-locale form, no extension). Links resolve in the page locale
+ * with a fallback to the default-locale page; unknown paths are skipped with a build warning.
+ * Localized mirrors without their own list inherit the default-locale page's list.
+ * Renders nothing when the field is absent or nothing resolves. Kept visible in print.
+ */
+import { getCollection, getEntry } from 'astro:content';
+import {
+    defaultLocaleSourceId,
+    prerequisitesLabel,
+    resolvePrerequisites,
+    titlesById,
+    warnOnce,
+} from '../../config/prerequisites.mjs';
+import { loadSiteConfig } from '../../config/site.mjs';
+
+const route = Astro.locals.starlightRoute;
+let paths = route.entry.data.prerequisites;
+// A localized mirror without its own list inherits the one written on the default-locale page.
+const sourceId = paths ? null : defaultLocaleSourceId(route.entry.id, route.locale);
+if (sourceId) paths = (await getEntry('docs', sourceId))?.data.prerequisites;
+
+let items: ReturnType<typeof resolvePrerequisites>['items'] = [];
+if (paths?.length) {
+    const titles = titlesById(await getCollection('docs'));
+    const result = resolvePrerequisites(paths, {
+        locale: route.locale,
+        lookupTitle: (id) => titles.get(id),
+        pageId: route.entry.id,
+    });
+    result.warnings.forEach(warnOnce);
+    items = result.items;
+}
+
+const label = prerequisitesLabel(route.lang);
+const defaultLang = loadSiteConfig().locales?.root?.lang;
+---
+
+{items.length > 0 && (
+    <aside
+        class="reading-prerequisites starlight-aside starlight-aside--note"
+        aria-label={label}
+        data-pagefind-ignore
+    >
+        <p class="starlight-aside__title"><span aria-hidden="true">📚</span> {label}</p>
+        <div class="starlight-aside__content">
+            <ul>
+                {items.map((item) => (
+                    <li>
+                        <a href={item.href} lang={item.fallback ? defaultLang : undefined}>{item.title}</a>
+                    </li>
+                ))}
+            </ul>
+        </div>
+    </aside>
+)}
+
+<style>
+    @layer starlight.core {
+        .reading-prerequisites {
+            margin-bottom: 1.5rem;
+        }
+
+        .reading-prerequisites ul {
+            margin: 0;
+            padding-inline-start: 1.25rem;
+        }
+
+        .reading-prerequisites li + li {
+            margin-top: 0.25rem;
+        }
+    }
+
+    @media print {
+        .reading-prerequisites {
+            break-inside: avoid;
+        }
+    }
+</style>

@@ -61,6 +61,16 @@ try {
     assert.match(html, /<title>Test Index \| Test Vault<\/title>/);
     assert.match(html, /<meta property="og:title" content="Test Index"/);
     assert.match(html, /<h1[^>]*>🧪 Test Index<\/h1>/);
+    // Lexicon tooltip: definition on the link, hidden description it points to.
+    assert.match(html, /<a[^>]*href="\/glossary\/term\/"[^>]*data-lexicon-def="Smoke term definition\."/);
+    assert.match(html, /aria-describedby="lexicon-def-term"/);
+    assert.match(html, /<span id="lexicon-def-term">Smoke term definition\.<\/span>/);
+    // Prerequisites box: resolved title, unknown path skipped.
+    assert.match(html, /class="reading-prerequisites[^"]*"[^>]*aria-label="Pour bien lire cette page"/);
+    assert.match(html, /<a href="\/glossary\/term\/"[^>]*>Smoke Term<\/a>/);
+    assert.doesNotMatch(html, /missing\/page/);
+    const termHtml = fs.readFileSync(path.join(distDir, 'glossary', 'term', 'index.html'), 'utf8');
+    assert.doesNotMatch(termHtml, /data-lexicon-def="/, 'no tooltip on the entry page itself');
 
     const robots = path.join(distDir, 'robots.txt');
     assert.ok(fs.existsSync(robots), `Expected ${robots} to exist`);

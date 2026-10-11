@@ -4,6 +4,9 @@
 import Default from '@astrojs/starlight/components/Head.astro';
 import MermaidEnhancer from './MermaidEnhancer.astro';
 import FootnoteBackrefHighlight from './FootnoteBackrefHighlight.astro';
+import LexiconTooltips from './LexiconTooltips.astro';
+import { isLexiconEnabled, loadLexiconConfig } from '../../config/lexicon.mjs';
+import { resolveVaultGitRoot } from '../../config/vault.mjs';
 import { loadSiteConfig } from '../../config/site.mjs';
 import {
     buildJsonLd,
@@ -13,6 +16,8 @@ import {
 } from '../../config/seo.mjs';
 
 const site = loadSiteConfig();
+const lexicon = loadLexiconConfig(resolveVaultGitRoot());
+const lexiconTooltips = isLexiconEnabled(lexicon) && lexicon.tooltips;
 const route = Astro.locals.starlightRoute;
 const head = route.head;
 const ogImage = site.ogImage ?? '';
@@ -51,3 +56,4 @@ const jsonLd = serializeJsonLd(
 <script is:inline type="application/ld+json" set:html={jsonLd} />
 <MermaidEnhancer />
 <FootnoteBackrefHighlight />
+{lexiconTooltips && <LexiconTooltips />}
