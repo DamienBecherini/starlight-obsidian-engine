@@ -6,7 +6,7 @@
  */
 
 /** Apache expression: the request came over HTTPS (directly or through a TLS proxy). */
-export const HTTPS_EXPRESSION = "%{HTTPS} == 'on' || %{HTTP:X-Forwarded-Proto} == 'https'";
+export const HTTPS_EXPRESSION = "%{HTTPS} == 'on' || req('X-Forwarded-Proto') == 'https'";
 
 /** Marker line opening the generated block. */
 const HEADER = '# Site rules generated from site.config.json "apache" (starlight-obsidian-engine).';
