@@ -17,15 +17,14 @@ const route = Astro.locals.starlightRoute;
 const head = route.head;
 const ogImage = site.ogImage ?? '';
 const articleAuthor = site.editorial?.hitl?.url ?? site.editorial?.hitl?.name ?? '';
-// Use the build date as published_time so LinkedIn shows a date.
-// Individual pages could override this in the future via frontmatter.
-const publishedTime = new Date().toISOString();
-
 // Starlight already emits twitter:card; only add the tags it does not.
 const twitterCard = ogImage && !hasHeadMeta(head, 'twitter:card');
 const twitterImage = ogImage && !hasHeadMeta(head, 'twitter:image');
 
 const data = route.entry.data as typeof route.entry.data & { last_modified?: string };
+// Article dates come from frontmatter `last_modified`, never from the build clock: a build-time date
+// changed every page on every build, so incremental deploys re-uploaded the whole site.
+const articleDate = data.last_modified?.trim() || undefined;
 const jsonLd = serializeJsonLd(
     buildJsonLd({
         kind: data.template === 'splash' ? 'website' : 'article',
@@ -47,7 +46,8 @@ const jsonLd = serializeJsonLd(
 {twitterImage && <meta name="twitter:image" content={ogImage} />}
 {articleAuthor && <meta property="article:author" content={articleAuthor} />}
 {site.editorial?.hitl?.name && <meta name="author" content={site.editorial.hitl.name} />}
-<meta property="article:published_time" content={publishedTime} />
+{articleDate && <meta property="article:published_time" content={articleDate} />}
+{articleDate && <meta property="article:modified_time" content={articleDate} />}
 <script is:inline type="application/ld+json" set:html={jsonLd} />
 <MermaidEnhancer />
 <FootnoteBackrefHighlight />
