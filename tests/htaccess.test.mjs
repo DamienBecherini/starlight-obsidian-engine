@@ -85,7 +85,7 @@ test('buildAuthHtaccessFile prepends site rules and asks for credentials over HT
     assert.ok(redirect >= 0 && authType > redirect, 'site rules come before Basic Auth');
     assert.match(
         file,
-        /<If "%\{HTTPS\} == 'on' \|\| %\{HTTP:X-Forwarded-Proto\} == 'https'">\n {4}AuthType Basic/,
+        /<If "%\{HTTPS\} == 'on' \|\| req\('X-Forwarded-Proto'\) == 'https'">\n {4}AuthType Basic/,
     );
     assert.match(file, / {4}Require valid-user\n<\/If>/);
     assert.match(file, /<FilesMatch "\^\\\.ht">/);
