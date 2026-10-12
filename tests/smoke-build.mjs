@@ -71,6 +71,16 @@ try {
     assert.doesNotMatch(html, /missing\/page/);
     const termHtml = fs.readFileSync(path.join(distDir, 'glossary', 'term', 'index.html'), 'utf8');
     assert.doesNotMatch(termHtml, /data-lexicon-def="/, 'no tooltip on the entry page itself');
+    // Default-locale pages keep default-locale links.
+    const frOnlyHtml = fs.readFileSync(path.join(distDir, '00-index', 'fr-only', 'index.html'), 'utf8');
+    assert.match(frOnlyHtml, /<a[^>]*href="\/glossary\/term\/"[^>]*data-lexicon-def="Smoke term definition\."/);
+    assert.doesNotMatch(frOnlyHtml, /href="\/en\//);
+    // Localized links: EN mirror → /en/ page (EN tooltip, anchor kept), no mirror → FR page + hreflang.
+    const enHtml = fs.readFileSync(path.join(distDir, 'en', '00-index', 'index.html'), 'utf8');
+    assert.match(enHtml, /<a[^>]*href="\/en\/glossary\/term\/"[^>]*data-lexicon-def="Smoke term definition \(EN\)\."/);
+    assert.match(enHtml, /<a[^>]*href="\/en\/glossary\/term#usage\/"/);
+    assert.match(enHtml, /<a[^>]*href="\/00-index\/fr-only\/"[^>]*hreflang="fr"/);
+    assert.doesNotMatch(enHtml, /href="\/glossary\/term/);
 
     const robots = path.join(distDir, 'robots.txt');
     assert.ok(fs.existsSync(robots), `Expected ${robots} to exist`);

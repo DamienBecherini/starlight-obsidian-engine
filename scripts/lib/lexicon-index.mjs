@@ -161,7 +161,7 @@ function resolvePathsFromConfig(config, vaultRoot) {
  * Uses `escapeTableCell` on the title so pipe characters don't break the table.
  * @param {string} slug
  * @param {string} title
- * @param {string} directory
+ * @param {string} directory Site path of the entry folder (e.g. `00-lexique` or `en/00-lexique`).
  * @returns {string}
  */
 export function mdLinkCell(slug, title, directory) {
@@ -169,44 +169,93 @@ export function mdLinkCell(slug, title, directory) {
     return `[${label}](/${directory}/${slug}/)`;
 }
 
+/** Built-in table header labels; other languages fall back to English. */
+const INDEX_LABELS = {
+    fr: { term: 'Terme', definition: 'Définition' },
+    en: { term: 'Term', definition: 'Definition' },
+};
+
 /**
- * Generates an Obsidian wikilink for a lexicon entry.
- * Used by list-format renderers where GFM table pipe conflicts are not a concern.
- * @param {string} slug
- * @param {string} title
- * @param {string} directory
- * @returns {string}
+ * Table header labels of a lexicon index for a language (BCP 47 tag such as `fr` or `en-US`).
+ * @param {string | undefined} lang
+ * @returns {{ term: string, definition: string }}
  */
-export function mdWikiLink(slug, title, directory) {
-    return `[[${directory}/${slug}|${title.trim()}]]`;
+export function lexiconIndexLabels(lang) {
+    const base = (lang ?? '').toLowerCase().split('-')[0];
+    return base === 'fr' ? INDEX_LABELS.fr : INDEX_LABELS.en;
 }
 
 /**
+ * Wiki link to the lexicon hub, or '' when `hubLink` is unset or the intro already links the hub.
+ * A bare `hubLink.path` is relative to the lexicon directory.
+ * @param {{ intro: string, hubLink?: { path: string, label: string } }} meta
+ * @param {string} directory Vault-relative lexicon directory (default-locale form).
+ * @returns {string}
+ */
+export function hubLinkMarkdown(meta, directory) {
+    if (!meta.hubLink) return '';
+    const target = meta.hubLink.path.includes('/') ? meta.hubLink.path : `${directory}/${meta.hubLink.path}`;
+    if (meta.intro.includes(`[[${target}`)) return '';
+    return `→ [[${target}|${meta.hubLink.label}]]`;
+}
+
+/**
+ * @typedef {Object} LexiconIndexRow
+ * @property {string} slug
+ * @property {string} title
+ * @property {string} description
+ * @property {string} directory Site path of the entry folder the link points to.
+ * @property {string} [note] Text appended after the link (e.g. the language of a fallback entry).
+ */
+
+/**
+ * Renders an index page: frontmatter, intro, optional hub link, `Term | Definition` table.
+ * @param {LexiconIndexRow[]} rows
+ * @param {{ title: string, description: string, intro: string, hubLink?: { path: string, label: string } }} meta
+ * @param {{ term: string, definition: string }} labels
+ * @param {string} directory Vault-relative lexicon directory (default-locale form).
+ * @returns {string}
+ */
+function renderIndexPage(rows, meta, labels, directory) {
+    const hubLine = hubLinkMarkdown(meta, directory);
+    return [
+        '---',
+        `title: ${yamlScalar(meta.title)}`,
+        `description: ${yamlScalar(meta.description)}`,
+        '---',
+        '',
+        meta.intro,
+        '',
+        ...(hubLine ? [hubLine, ''] : []),
+        `| ${labels.term} | ${labels.definition} |`,
+        '| :-- | :-- |',
+        ...rows.map((row) => {
+            const term = mdLinkCell(row.slug, row.title, row.directory);
+            const note = row.note ? ` ${escapeTableCell(row.note)}` : '';
+            return `| ${term}${note} | ${escapeTableCell(row.description)} |`;
+        }),
+        '',
+    ].join('\n');
+}
+
+/**
+ * @param {string} directory
+ * @returns {string}
+ */
+function trimDirectory(directory) {
+    return directory.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+}
+
+/**
+ * Default-locale index (header labels in the `sortLocale` language).
  * @param {LexiconEntry[]} entries
  * @param {LexiconConfigEnabled} config
  * @returns {string}
  */
 export function renderIndexMarkdown(entries, config) {
-    const directory = config.directory.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
-    const rows = entries.map((e) => {
-        const term = mdLinkCell(e.slug, e.title, directory);
-        const def = escapeTableCell(e.description);
-        return `| ${term} | ${def} |`;
-    });
-
-    return [
-        '---',
-        `title: ${yamlScalar(config.index.title)}`,
-        `description: ${yamlScalar(config.index.description)}`,
-        '---',
-        '',
-        config.index.intro,
-        '',
-        '| Terme | Définition |',
-        '| :-- | :-- |',
-        ...rows,
-        '',
-    ].join('\n');
+    const directory = trimDirectory(config.directory);
+    const rows = entries.map((e) => ({ ...e, directory }));
+    return renderIndexPage(rows, config.index, lexiconIndexLabels(config.sortLocale), directory);
 }
 
 /**
@@ -233,106 +282,123 @@ export function writeLexiconIndex(vaultRoot, config) {
 }
 
 // ---------------------------------------------------------------------------
-// Locale-aware index generation (e.g. en/00-lexique/lexicon-index.md)
+// Localized indexes (e.g. en/00-lexique/lexicon-index.md)
 // ---------------------------------------------------------------------------
 
 /**
- * Renders a lexicon index from explicit metadata instead of reading it from config.
- * Avoids table format (pipe-conflicts with wikilink alias divider).
- * @param {LexiconEntry[]} entries
- * @param {{ title: string, description: string, intro: string }} meta
- * @param {string} directory Vault-relative directory (e.g. "00-lexique")
- * @returns {string}
+ * @typedef {LexiconEntry & { fallback: boolean }} LocalizedLexiconEntry
+ * `fallback` is true when the locale has no mirror of the entry (title, description and link
+ * then come from the default-locale entry).
  */
-export function renderIndexMarkdownWithMeta(entries, meta, directory) {
-    const items = entries.map((e) => {
-        const link = mdWikiLink(e.slug, e.title, directory);
-        const def = e.description.replace(/\r?\n/g, ' ').trim();
-        return `- ${link} — ${def}`;
-    });
-    return [
-        '---',
-        `title: ${yamlScalar(meta.title)}`,
-        `description: ${yamlScalar(meta.description)}`,
-        '---',
-        '',
-        meta.intro,
-        '',
-        ...items,
-        '',
-    ].join('\n');
-}
 
 /**
- * Collects lexicon entries from a locale-specific directory (e.g. en/00-lexique/).
- * Returns an empty array if the directory does not exist.
+ * @typedef {Object} LocalizedLexiconIndex
+ * @property {string} locale
+ * @property {LocalizedLexiconEntry[]} entries
+ * @property {number} fallbacks Number of entries without a localized mirror.
+ * @property {string} markdown
+ * @property {string} outputPath
+ */
+
+/**
+ * Builds the index of a non-default locale from the entries of its mirror folder
+ * (`<locale>/<directory>/`), with the same publish filtering as the default index. Every
+ * default-locale entry is listed: in the locale (link to `/<locale>/<directory>/<slug>/`) when
+ * mirrored, otherwise from the default-locale entry, linked to the default-locale page and marked
+ * with the default language code (e.g. `(FR)`). Returns null when the mirror folder does not exist.
  * @param {string} vaultRoot
  * @param {LexiconConfigEnabled} config
- * @param {string} locale Locale prefix (e.g. "en")
- * @param {string} sortLocale BCP 47 tag for sorting (e.g. "en")
- * @returns {LexiconEntry[]}
+ * @param {string} locale Locale key (e.g. `en`).
+ * @param {import('../../config/lexicon.mjs').LexiconIndexTranslation} translation
+ * @param {{ lang?: string, defaultLang?: string }} [langs] Locale and default-locale BCP 47 tags.
+ * @returns {LocalizedLexiconIndex | null}
  */
-export function collectLexiconEntriesForLocale(vaultRoot, config, locale, sortLocale) {
-    const dir = config.directory.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
-    const localeDir = path.join(vaultRoot, locale, dir);
-    if (!fs.existsSync(localeDir)) return [];
+export function buildLocalizedLexiconIndex(vaultRoot, config, locale, translation, langs = {}) {
+    const directory = trimDirectory(config.directory);
+    const localeDirectory = `${locale}/${directory}`;
+    if (!fs.existsSync(path.join(vaultRoot, localeDirectory))) return null;
 
-    const indexBasename = path.basename(config.indexPage);
-    const hubBasename = path.basename(config.hubPage);
-    const isIgnored = loadVaultPublishFilter(vaultRoot);
-    /** @type {LexiconEntry[]} */
-    const entries = [];
+    const lang = langs.lang ?? locale;
+    const defaultLang = langs.defaultLang ?? config.sortLocale;
+    const fallbackNote = `(${defaultLang.split('-')[0].toUpperCase()})`;
 
-    for (const name of fs.readdirSync(localeDir)) {
-        if (!name.endsWith('.md')) continue;
-        if (name === hubBasename || name === indexBasename) continue;
-
-        const vaultRel = `${locale}/${dir}/${name}`.replace(/\\/g, '/');
-        if (isIgnored(vaultRel)) continue;
-
-        const meta = readLexiconEntry(path.join(localeDir, name));
-        if (!meta?.tags.includes(config.entryTag)) continue;
-
-        const slug = name.replace(/\.md$/i, '');
-        entries.push({
-            slug,
-            title: meta.title?.trim() || slug,
-            description: meta.description?.trim() || '-',
-            warnings: [],
-        });
-
-        const entry = entries[entries.length - 1];
-        if (!meta.title?.trim()) entry.warnings.push('missing title');
-        if (!meta.description?.trim()) entry.warnings.push('missing description');
-    }
-
-    entries.sort((a, b) =>
-        a.title.localeCompare(b.title, sortLocale, { sensitivity: 'base' }),
+    const localized = new Map(
+        collectLexiconEntries(vaultRoot, { ...config, directory: localeDirectory }).map((e) => [e.slug, e]),
     );
-    return entries;
+    /** @type {Array<LocalizedLexiconEntry & { directory: string, note?: string }>} */
+    const rows = [];
+    for (const entry of collectLexiconEntries(vaultRoot, config)) {
+        const mirror = localized.get(entry.slug);
+        localized.delete(entry.slug);
+        rows.push(
+            mirror
+                ? { ...mirror, fallback: false, directory: localeDirectory }
+                : { ...entry, fallback: true, directory, note: fallbackNote },
+        );
+    }
+    // Entries that only exist in the locale.
+    for (const mirror of localized.values()) rows.push({ ...mirror, fallback: false, directory: localeDirectory });
+    rows.sort((a, b) => a.title.localeCompare(b.title, lang, { sensitivity: 'base' }));
+
+    return {
+        locale,
+        entries: rows.map(({ slug, title, description, warnings, fallback }) => ({ slug, title, description, warnings, fallback })),
+        fallbacks: rows.filter((row) => row.fallback).length,
+        markdown: renderIndexPage(rows, translation, lexiconIndexLabels(lang), directory),
+        outputPath: path.join(vaultRoot, localeDirectory, path.basename(config.indexPage)),
+    };
 }
 
 /**
- * Builds and writes a locale-specific lexicon index.
- * Reads entries from <locale>/<directory>/, writes to <locale>/<directory>/lexicon-index.md.
- * Returns { count, outputPath } — count is 0 and outputPath is '' if skipped.
+ * Locales declared in the vault `site.config.json` (`{}` when missing or unreadable).
+ * @param {string} vaultRoot
+ * @returns {Record<string, { lang?: string }>}
+ */
+export function loadVaultLocales(vaultRoot) {
+    try {
+        const raw = JSON.parse(fs.readFileSync(path.join(vaultRoot, 'site.config.json'), 'utf-8'));
+        return raw.locales && typeof raw.locales === 'object' ? raw.locales : {};
+    } catch {
+        return {};
+    }
+}
+
+/**
+ * @typedef {Object} LocalizedIndexResult
+ * @property {string} locale
+ * @property {LocalizedLexiconIndex | null} index Null when skipped.
+ * @property {string} [skipped] Why the locale was skipped.
+ */
+
+/**
+ * Writes the index of every non-default locale that has a `lexicon.index.translations` entry and
+ * a mirror of the lexicon folder.
  * @param {string} vaultRoot
  * @param {LexiconConfigEnabled} config
- * @param {string} locale
- * @param {{ title: string, description: string, intro: string }} translation
- * @param {string} sortLocale
- * @returns {{ count: number, outputPath: string }}
+ * @param {Record<string, { lang?: string }>} locales Site locales (`root` = default locale).
+ * @returns {LocalizedIndexResult[]}
  */
-export function writeLocaleIndex(vaultRoot, config, locale, translation, sortLocale) {
-    const dir = config.directory.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
-    const localeDir = path.join(vaultRoot, locale, dir);
-    if (!fs.existsSync(localeDir)) return { count: 0, outputPath: '' };
-
-    const entries = collectLexiconEntriesForLocale(vaultRoot, config, locale, sortLocale);
-    if (entries.length === 0) return { count: 0, outputPath: '' };
-
-    const markdown = renderIndexMarkdownWithMeta(entries, translation, dir);
-    const outputPath = path.join(localeDir, path.basename(config.indexPage));
-    fs.writeFileSync(outputPath, markdown, 'utf-8');
-    return { count: entries.length, outputPath };
+export function writeLocalizedLexiconIndexes(vaultRoot, config, locales) {
+    /** @type {LocalizedIndexResult[]} */
+    const results = [];
+    const defaultLang = locales.root?.lang ?? config.sortLocale;
+    for (const [locale, localeConfig] of Object.entries(locales)) {
+        if (locale === 'root') continue;
+        const translation = config.index.translations?.[locale];
+        if (!translation) {
+            results.push({ locale, index: null, skipped: 'no lexicon.index.translations entry' });
+            continue;
+        }
+        const index = buildLocalizedLexiconIndex(vaultRoot, config, locale, translation, {
+            lang: localeConfig?.lang ?? locale,
+            defaultLang,
+        });
+        if (!index) {
+            results.push({ locale, index: null, skipped: `no ${locale}/${trimDirectory(config.directory)}/ folder` });
+            continue;
+        }
+        fs.writeFileSync(index.outputPath, index.markdown, 'utf-8');
+        results.push({ locale, index });
+    }
+    return results;
 }

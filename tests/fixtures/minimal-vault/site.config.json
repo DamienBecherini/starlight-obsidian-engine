@@ -3,7 +3,8 @@
   "url": "https://docs.example.com",
   "defaultLocale": "root",
   "locales": {
-    "root": { "label": "Français", "lang": "fr" }
+    "root": { "label": "Français", "lang": "fr" },
+    "en": { "label": "English", "lang": "en" }
   },
   "lexicon": {
     "enabled": true,

@@ -6,11 +6,16 @@ import path from 'node:path';
 import test from 'node:test';
 import { parseLexiconBlock } from '../config/lexicon.mjs';
 import {
+    buildLocalizedLexiconIndex,
     collectLexiconEntries,
     escapeTableCell,
+    hubLinkMarkdown,
+    lexiconIndexLabels,
+    loadVaultLocales,
     parseLexiconFrontmatter,
     renderIndexMarkdown,
     writeLexiconIndex,
+    writeLocalizedLexiconIndexes,
     yamlScalar,
 } from '../scripts/lib/lexicon-index.mjs';
 
@@ -158,4 +163,170 @@ test('renderIndexMarkdown writes a parseable description containing a colon', ()
     });
     const md = renderIndexMarkdown([], config);
     assert.match(md, /^description: "Index : LLM, VRAM"$/m);
+});
+
+/**
+ * Temporary vault with FR entries (alpha, beta, gamma, secret) and EN mirrors (alpha, beta,
+ * en-only, secret); `secret` is gitignored in both locales.
+ * @returns {string}
+ */
+function localizedVault() {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'lexicon-locale-'));
+    const write = (/** @type {string} */ rel, /** @type {string} */ title, /** @type {string} */ description) => {
+        fs.mkdirSync(path.dirname(path.join(tmp, rel)), { recursive: true });
+        fs.writeFileSync(
+            path.join(tmp, rel),
+            `---\ntitle: ${title}\ndescription: ${description}\ntags:\n  - lexique\n---\n`,
+            'utf-8',
+        );
+    };
+    write('00-lexique/alpha.md', 'Zêta alpha', 'Définition alpha');
+    write('00-lexique/beta.md', 'Bêta', 'Définition bêta');
+    write('00-lexique/gamma.md', 'Gamma', 'Définition gamma | pipe');
+    write('00-lexique/secret.md', 'Secret', 'caché');
+    write('en/00-lexique/alpha.md', 'Alpha', 'Alpha definition');
+    write('en/00-lexique/beta.md', 'Beta', 'Beta definition');
+    write('en/00-lexique/en-only.md', 'English only', 'Only in English');
+    write('en/00-lexique/secret.md', 'Secret', 'hidden');
+    fs.writeFileSync(path.join(tmp, '.gitignore'), '00-lexique/secret.md\nen/00-lexique/secret.md\n', 'utf-8');
+    fs.writeFileSync(
+        path.join(tmp, 'site.config.json'),
+        JSON.stringify({ locales: { root: { label: 'Français', lang: 'fr' }, en: { label: 'English', lang: 'en' } } }),
+        'utf-8',
+    );
+    return tmp;
+}
+
+/** @returns {import('../config/lexicon.mjs').LexiconConfigEnabled} */
+function localizedConfig() {
+    const config = parseLexiconBlock({
+        enabled: true,
+        directory: '00-lexique',
+        hubPage: 'ai-glossary.md',
+        indexPage: 'lexicon-index.md',
+        index: {
+            title: 'Index du lexique',
+            description: 'Index : tout',
+            intro: 'Généré. Voir [[00-lexique/ai-glossary|Glossaire IA]].',
+            hubLink: { path: 'ai-glossary', label: 'Glossaire IA' },
+            translations: {
+                en: {
+                    title: 'Lexicon index',
+                    description: 'Index: everything',
+                    intro: 'Generated.',
+                    hubLink: { path: 'ai-glossary', label: 'AI Glossary' },
+                },
+            },
+        },
+    });
+    assert.equal(config.enabled, true);
+    return /** @type {import('../config/lexicon.mjs').LexiconConfigEnabled} */ (config);
+}
+
+test('lexiconIndexLabels localizes the table header (English for other languages)', () => {
+    assert.deepEqual(lexiconIndexLabels('fr'), { term: 'Terme', definition: 'Définition' });
+    assert.deepEqual(lexiconIndexLabels('en-US'), { term: 'Term', definition: 'Definition' });
+    assert.deepEqual(lexiconIndexLabels('de'), { term: 'Term', definition: 'Definition' });
+});
+
+test('hubLinkMarkdown links the hub only when the intro does not already', () => {
+    const hubLink = { path: 'ai-glossary', label: 'AI Glossary' };
+    assert.equal(hubLinkMarkdown({ intro: 'See [[00-lexique/ai-glossary|AI Glossary]].', hubLink }, '00-lexique'), '');
+    assert.equal(
+        hubLinkMarkdown({ intro: 'Generated.', hubLink }, '00-lexique'),
+        '→ [[00-lexique/ai-glossary|AI Glossary]]',
+    );
+    assert.equal(hubLinkMarkdown({ intro: 'Generated.' }, '00-lexique'), '');
+});
+
+test('buildLocalizedLexiconIndex lists localized entries and falls back to default-locale ones', () => {
+    const tmp = localizedVault();
+    try {
+        const config = localizedConfig();
+        const translation = config.index.translations?.en;
+        assert.ok(translation);
+        const index = buildLocalizedLexiconIndex(tmp, config, 'en', translation, { lang: 'en', defaultLang: 'fr' });
+        assert.ok(index);
+        assert.deepEqual(
+            index.entries.map((e) => [e.slug, e.title, e.fallback]),
+            [
+                ['alpha', 'Alpha', false],
+                ['beta', 'Beta', false],
+                ['en-only', 'English only', false],
+                ['gamma', 'Gamma', true],
+            ],
+        );
+        assert.equal(index.fallbacks, 1);
+        assert.equal(index.outputPath, path.join(tmp, 'en', '00-lexique', 'lexicon-index.md'));
+        assert.equal(
+            index.markdown,
+            [
+                '---',
+                'title: Lexicon index',
+                'description: "Index: everything"',
+                '---',
+                '',
+                'Generated.',
+                '',
+                '→ [[00-lexique/ai-glossary|AI Glossary]]',
+                '',
+                '| Term | Definition |',
+                '| :-- | :-- |',
+                '| [Alpha](/en/00-lexique/alpha/) | Alpha definition |',
+                '| [Beta](/en/00-lexique/beta/) | Beta definition |',
+                '| [English only](/en/00-lexique/en-only/) | Only in English |',
+                '| [Gamma](/00-lexique/gamma/) (FR) | Définition gamma \\| pipe |',
+                '',
+            ].join('\n'),
+        );
+        assert.equal(buildLocalizedLexiconIndex(tmp, config, 'de', translation), null, 'no de/ mirror');
+    } finally {
+        fs.rmSync(tmp, { recursive: true, force: true });
+    }
+});
+
+test('writeLocalizedLexiconIndexes writes mirrored locales only, not the default index', () => {
+    const tmp = localizedVault();
+    try {
+        const config = localizedConfig();
+        const locales = { ...loadVaultLocales(tmp), de: { lang: 'de' } };
+        const results = writeLocalizedLexiconIndexes(tmp, config, locales);
+        assert.deepEqual(
+            results.map((r) => [r.locale, r.index?.entries.length ?? 0, r.skipped]),
+            [
+                ['en', 4, undefined],
+                ['de', 0, 'no lexicon.index.translations entry'],
+            ],
+        );
+        const out = fs.readFileSync(path.join(tmp, 'en', '00-lexique', 'lexicon-index.md'), 'utf-8');
+        assert.match(out, /\| \[Alpha\]\(\/en\/00-lexique\/alpha\/\) \|/);
+        assert.doesNotMatch(out, /Secret|hidden/);
+        assert.equal(fs.existsSync(path.join(tmp, '00-lexique', 'lexicon-index.md')), false);
+        assert.deepEqual(loadVaultLocales(path.join(tmp, 'missing')), {});
+    } finally {
+        fs.rmSync(tmp, { recursive: true, force: true });
+    }
+});
+
+test('renderIndexMarkdown keeps the default-locale output (French header, no extra hub line)', () => {
+    const md = renderIndexMarkdown(
+        [{ slug: 'ram', title: 'RAM', description: 'Mémoire', warnings: [] }],
+        localizedConfig(),
+    );
+    assert.equal(
+        md,
+        [
+            '---',
+            'title: Index du lexique',
+            'description: "Index : tout"',
+            '---',
+            '',
+            'Généré. Voir [[00-lexique/ai-glossary|Glossaire IA]].',
+            '',
+            '| Terme | Définition |',
+            '| :-- | :-- |',
+            '| [RAM](/00-lexique/ram/) | Mémoire |',
+            '',
+        ].join('\n'),
+    );
 });

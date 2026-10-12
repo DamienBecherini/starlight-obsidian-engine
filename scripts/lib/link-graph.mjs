@@ -157,7 +157,7 @@ export function parseAliasesFromFrontmatter(raw) {
  * @param {string} vaultRoot
  * @returns {PublishedMarkdownFile[]}
  */
-function listPublishedMarkdownFiles(vaultRoot) {
+export function listPublishedMarkdownFiles(vaultRoot) {
     const isIgnored = loadVaultPublishFilter(vaultRoot);
     /** @type {PublishedMarkdownFile[]} */
     const files = [];
