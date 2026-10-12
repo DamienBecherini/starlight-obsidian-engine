@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { loadLinkGraph } from '../../scripts/lib/link-graph-data.mjs';
-import { getLexiconDisplayExclusions } from '../../scripts/lib/link-graph.mjs';
+import { getLexiconDisplayExclusions, sectionFromVaultPath } from '../../scripts/lib/link-graph.mjs';
 import { seeAlsoSlugSet } from '../../scripts/lib/see-also-links.mjs';
 import { isLexiconEnabled, loadLexiconConfig } from '../../config/lexicon.mjs';
 import { resolveVaultGitRoot } from '../../config/vault.mjs';
@@ -56,14 +56,21 @@ function loadSeeAlsoSlugs(slug: string): Set<string> {
 
 const seeAlsoSlugs = graphSlug ? loadSeeAlsoSlugs(graphSlug) : new Set<string>();
 
-const allRawEntries = graphSlug ? (graph.backlinks[graphSlug] ?? []) : [];
+// Links are keyed by target vault path: wiki links in mirrors use the default-locale form
+// (`00-lexique/x`), root-relative links to localized pages the locale form (`en/00-lexique/x`).
+const allRawEntries = graphSlug
+    ? [
+          ...(graph.backlinks[graphSlug] ?? []),
+          ...(currentSlug && currentSlug !== graphSlug ? (graph.backlinks[currentSlug] ?? []) : []),
+      ]
+    : [];
 
 /**
  * Keep only entries whose source locale matches the current page locale.
  * For non-root locales, falls back to root-locale sources when no same-locale entries exist.
  * Deduplicates by normalized slug and normalizes `from` for locale-neutral URL generation.
  */
-function filterAndNormalizeEntries<T extends { from: string }>(entries: T[]): T[] {
+function filterAndNormalizeEntries<T extends { from: string; section: string }>(entries: T[]): T[] {
     let base: T[];
     if (!locale) {
         // Root locale (FR): only root-locale sources (no locale prefix).
@@ -84,7 +91,11 @@ function filterAndNormalizeEntries<T extends { from: string }>(entries: T[]): T[
             seen.add(n);
             return true;
         })
-        .map((e) => ({ ...e, from: normalizeFromSlug(e.from) } as T));
+        .map((e) => {
+            const from = normalizeFromSlug(e.from);
+            // Section from the locale-neutral path (`en/01-x/page` → `01-x`, not `en`).
+            return { ...e, from, section: sectionFromVaultPath(from) } as T;
+        });
 }
 
 const rawEntries = filterAndNormalizeEntries(allRawEntries);
