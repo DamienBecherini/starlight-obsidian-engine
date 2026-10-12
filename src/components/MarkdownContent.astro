@@ -1,0 +1,7 @@
+---
+// Override Starlight: render the prerequisites box (frontmatter `prerequisites`) before the body.
+import Default from '@astrojs/starlight/components/MarkdownContent.astro';
+import PrerequisitesBox from './PrerequisitesBox.astro';
+---
+
+<Default><PrerequisitesBox /><slot /></Default>

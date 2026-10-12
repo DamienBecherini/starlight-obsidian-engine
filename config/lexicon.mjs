@@ -28,6 +28,7 @@ import { resolveVaultPath } from './vault.mjs';
  * @property {string} hubPage
  * @property {string} indexPage
  * @property {string} sortLocale
+ * @property {boolean} tooltips Expose entry descriptions as tooltips on links to entries (default true).
  * @property {LexiconIndexConfig} index
  */
 
@@ -135,6 +136,7 @@ export function parseLexiconBlock(raw) {
         hubPage,
         indexPage,
         sortLocale,
+        tooltips: block.tooltips !== false,
         index: { title, description, intro, hubLink, translations },
     };
 }

@@ -41,6 +41,8 @@ const editorialSchema = z.object({
 	verified_hitl: z.string().optional(),
 	verified_hitl_url: z.url().optional(),
 	prices_valid_as_of: z.string().optional(),
+	/** Vault paths (default-locale form, no extension) listed in the "before reading" box. */
+	prerequisites: z.array(z.string()).optional(),
 });
 
 export const collections = {

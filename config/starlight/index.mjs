@@ -26,6 +26,7 @@ export const starlightIntegration = starlight({
         Head: './src/components/Head.astro',
         Footer: './src/components/Footer.astro',
         PageSidebar: './src/components/PageSidebar.astro',
+        MarkdownContent: './src/components/MarkdownContent.astro',
     },
     defaultLocale: site.defaultLocale,
     locales: site.locales,

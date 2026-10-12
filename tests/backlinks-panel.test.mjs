@@ -24,6 +24,7 @@ const lexiconEnabled = {
     hubPage: 'glossaire-ia.md',
     indexPage: 'index-lexique.md',
     sortLocale: 'fr',
+    tooltips: true,
     index: {
         title: 'Index',
         description: 'Index',

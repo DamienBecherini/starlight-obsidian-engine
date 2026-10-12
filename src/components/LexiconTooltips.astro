@@ -1,0 +1,192 @@
+---
+// Progressive enhancement for lexicon links annotated at build time (rehype-lexicon-tooltips):
+// a single fixed-position popover shows `data-lexicon-def` on hover, on keyboard focus and on a
+// first tap (touch; a second tap on the same link follows it). Escape or an outside tap closes it.
+// Screen readers already get the definition through `aria-describedby`, so the popover is visual.
+---
+
+<script>
+    const LINK_SELECTOR = '.sl-markdown-content a[data-lexicon-def]';
+    const GAP = 6;
+    const MARGIN = 8;
+    const HIDE_DELAY_MS = 150;
+
+    let popover: HTMLDivElement | null = null;
+    let current: HTMLAnchorElement | null = null;
+    let lastPointerType = '';
+    let hideTimer: number | undefined;
+
+    const openLabel = (): string =>
+        document.documentElement.lang.toLowerCase().startsWith('fr') ? 'Ouvrir la fiche' : 'Open the entry';
+
+    function ensurePopover(): HTMLDivElement {
+        if (popover) return popover;
+        popover = document.createElement('div');
+        popover.className = 'lexicon-popover';
+        popover.hidden = true;
+        popover.dataset.pagefindIgnore = '';
+        popover.addEventListener('pointerenter', cancelHide);
+        popover.addEventListener('pointerleave', (event) => {
+            if (event.pointerType !== 'touch') scheduleHide();
+        });
+        document.body.append(popover);
+        return popover;
+    }
+
+    function linkFrom(target: EventTarget | null): HTMLAnchorElement | null {
+        if (!(target instanceof Element)) return null;
+        const link = target.closest(LINK_SELECTOR);
+        return link instanceof HTMLAnchorElement && link.dataset.lexiconDef ? link : null;
+    }
+
+    function position(link: HTMLAnchorElement, pop: HTMLDivElement): void {
+        // First line box: a link wrapped over two lines anchors to where it starts.
+        const rect = link.getClientRects()[0] ?? link.getBoundingClientRect();
+        const width = pop.offsetWidth;
+        const height = pop.offsetHeight;
+        const maxLeft = window.innerWidth - width - MARGIN;
+        const left = Math.max(MARGIN, Math.min(rect.left, maxLeft));
+        const below = rect.bottom + GAP;
+        const fitsBelow = below + height <= window.innerHeight - MARGIN;
+        const above = rect.top - GAP - height;
+        const top = fitsBelow || above < MARGIN ? below : above;
+        pop.style.left = `${Math.round(left)}px`;
+        pop.style.top = `${Math.round(top)}px`;
+    }
+
+    function show(link: HTMLAnchorElement): void {
+        cancelHide();
+        const pop = ensurePopover();
+        if (current !== link) {
+            const def = document.createElement('p');
+            def.className = 'lexicon-popover__def';
+            def.textContent = link.dataset.lexiconDef ?? '';
+            const open = document.createElement('a');
+            open.className = 'lexicon-popover__link';
+            open.href = link.href;
+            open.tabIndex = -1;
+            open.textContent = `${openLabel()} →`;
+            pop.replaceChildren(def, open);
+            current = link;
+        }
+        pop.hidden = false;
+        position(link, pop);
+    }
+
+    function hide(): void {
+        cancelHide();
+        if (popover) popover.hidden = true;
+        current = null;
+    }
+
+    function cancelHide(): void {
+        if (hideTimer !== undefined) window.clearTimeout(hideTimer);
+        hideTimer = undefined;
+    }
+
+    function scheduleHide(): void {
+        cancelHide();
+        hideTimer = window.setTimeout(hide, HIDE_DELAY_MS);
+    }
+
+    const isOpen = (): boolean => Boolean(popover && !popover.hidden && current);
+
+    document.addEventListener('pointerdown', (event) => {
+        lastPointerType = event.pointerType;
+    }, true);
+
+    document.addEventListener('pointerover', (event) => {
+        if (event.pointerType === 'touch') return;
+        const link = linkFrom(event.target);
+        if (link) show(link);
+    });
+
+    document.addEventListener('pointerout', (event) => {
+        if (event.pointerType === 'touch') return;
+        const link = linkFrom(event.target);
+        if (link && !link.contains(event.relatedTarget as Node | null)) scheduleHide();
+    });
+
+    document.addEventListener('focusin', (event) => {
+        // A tap focuses the link before its click: leave touch to the click handler below.
+        if (lastPointerType === 'touch') return;
+        const link = linkFrom(event.target);
+        if (link) show(link);
+    });
+
+    document.addEventListener('focusout', (event) => {
+        if (linkFrom(event.target)) scheduleHide();
+    });
+
+    // Touch: the first tap opens the definition, a second tap on the same link navigates.
+    // Mouse and keyboard clicks are never intercepted.
+    document.addEventListener('click', (event) => {
+        const link = linkFrom(event.target);
+        if (link && lastPointerType === 'touch') {
+            if (current !== link || !isOpen()) {
+                event.preventDefault();
+                show(link);
+            }
+            lastPointerType = '';
+            return;
+        }
+        lastPointerType = '';
+        if (isOpen() && !(event.target instanceof Node && popover?.contains(event.target))) hide();
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && isOpen()) hide();
+    });
+
+    const reposition = (): void => {
+        if (isOpen() && current && popover) position(current, popover);
+    };
+    window.addEventListener('scroll', reposition, { passive: true });
+    window.addEventListener('resize', reposition, { passive: true });
+</script>
+
+<style is:global>
+    @layer starlight.core {
+        .sl-markdown-content a.lexicon-term {
+            text-decoration-style: dotted;
+            text-underline-offset: 0.2em;
+        }
+
+        .lexicon-popover {
+            position: fixed;
+            z-index: 1000;
+            box-sizing: border-box;
+            max-width: min(22rem, calc(100vw - 16px));
+            padding: 0.6rem 0.8rem;
+            border: 1px solid var(--sl-color-gray-5);
+            border-radius: 0.5rem;
+            background-color: var(--sl-color-bg-nav);
+            box-shadow: var(--sl-shadow-md);
+            color: var(--sl-color-white);
+            font-size: var(--sl-text-sm);
+            line-height: 1.5;
+            overflow-wrap: anywhere;
+        }
+
+        .lexicon-popover[hidden] {
+            display: none;
+        }
+
+        .lexicon-popover__def {
+            margin: 0;
+        }
+
+        .lexicon-popover__link {
+            display: inline-block;
+            margin-top: 0.4rem;
+            color: var(--sl-color-text-accent);
+            font-weight: 600;
+        }
+    }
+
+    @media print {
+        .lexicon-popover {
+            display: none !important;
+        }
+    }
+</style>

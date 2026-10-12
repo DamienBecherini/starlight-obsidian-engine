@@ -5,6 +5,13 @@
   "locales": {
     "root": { "label": "Français", "lang": "fr" }
   },
+  "lexicon": {
+    "enabled": true,
+    "directory": "glossary",
+    "hubPage": "hub.md",
+    "indexPage": "index-generated.md",
+    "index": { "title": "Glossary index", "description": "All terms", "intro": "Generated." }
+  },
   "sidebar": [
     {
       "label": "Index",
