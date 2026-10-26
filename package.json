@@ -43,12 +43,12 @@
     "test:build:local": "node -e \"process.env.PAGEFIND='0'; import('./tests/smoke-build.mjs')\""
   },
   "dependencies": {
-    "@astrojs/markdown-remark": "^7.3.2",
-    "@astrojs/react": "^7.0.1",
+    "@astrojs/markdown-remark": "^7.3.4",
+    "@astrojs/react": "^7.1.1",
     "@astrojs/starlight": "^0.42.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
-    "astro": "^7.3.8",
+    "astro": "^7.4.2",
     "astro-mermaid": "^2.1.0",
     "basic-ftp": "^6.2.2",
     "ignore": "^7.0.12",
@@ -64,7 +64,7 @@
     "svg-pan-zoom": "^3.6.2"
   },
   "devDependencies": {
-    "@astrojs/check": "^0.9.10",
+    "@astrojs/check": "^0.9.12",
     "@eslint/js": "^10.0.1",
     "@types/ssh2-sftp-client": "^9.0.6",
     "@typescript-eslint/parser": "^8.71.1",
