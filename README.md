@@ -119,7 +119,8 @@ On an Apache host (o2switch, cPanel…), the engine can generate `.htaccess` sit
   "forceHttps": true,          // 301 http:// → https:// (X-Forwarded-Proto guard against proxy loops)
   "notFoundPage": "/404.html", // ErrorDocument 404: serve the site's own 404 page
   "notFoundPages": { "/en/": "/en/404/" }, // per-prefix 404 page (overrides notFoundPage under /en/)
-  "hsts": true                 // Strict-Transport-Security, HTTPS responses only; true = 1 year, or seconds
+  "hsts": true,                // Strict-Transport-Security, HTTPS responses only; true = 1 year, or seconds
+  "directoryListing": false    // Options -Indexes: folders without an index page are not listed
 }
 ```
 
@@ -140,6 +141,13 @@ uploads dotfiles, so the rules reach the server through a dedicated command:
 Run them again after changing the `apache` block. Vaults call engine scripts through their own
 `scripts/delegate.mjs`: add `htaccess-install` to its allowed commands and a
 `"htaccess:install": "node scripts/delegate.mjs htaccess-install"` npm script to use it from the vault.
+
+### Static files (`public/` in the vault)
+
+Files in the vault's `public/` folder are served at the site root: `public/shot.png` becomes `/shot.png`, in
+`dev` and in the build. A vault file replaces an engine file of the same name. Dotfiles, symbolic links and paths
+excluded by `publish.exclude` or the vault `.gitignore` are not published. `npm run audit:links` accepts links to
+these files. Restart `npm run dev` after adding one.
 
 ## SEO
 

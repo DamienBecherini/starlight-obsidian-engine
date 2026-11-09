@@ -12,6 +12,7 @@
  * @property {string | null} notFoundPage Site path served for 404s (`ErrorDocument 404`), e.g. `/404.html`.
  * @property {LocalizedNotFoundPage[]} [notFoundPages] Per-prefix 404 pages (e.g. one per locale), overriding `notFoundPage`.
  * @property {number | null} [hstsMaxAge] `Strict-Transport-Security` max-age in seconds (HTTPS responses only), or null.
+ * @property {false} [directoryListing] Present and `false`: Apache no longer lists folders without an index page.
  */
 
 /** Root-relative path, no whitespace, quotes or control characters (safe in an Apache directive). */
@@ -69,7 +70,7 @@ function parseHsts(raw) {
 
 /**
  * Parses the optional `apache` block of site.config.json:
- * `{ "forceHttps": true, "notFoundPage": "/404.html", "notFoundPages": { "/en/": "/en/404/" }, "hsts": true }`.
+ * `{ "forceHttps": true, "notFoundPage": "/404.html", "notFoundPages": { "/en/": "/en/404/" }, "hsts": true, "directoryListing": false }`.
  * Returns `null` when the block is absent or enables nothing (no `.htaccess` site rules).
  * Invalid values are ignored with a warning.
  * @param {unknown} raw
@@ -77,8 +78,8 @@ function parseHsts(raw) {
  */
 export function parseApacheBlock(raw) {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
-    const { forceHttps, notFoundPage, notFoundPages, hsts } =
-        /** @type {{ forceHttps?: unknown, notFoundPage?: unknown, notFoundPages?: unknown, hsts?: unknown }} */ (raw);
+    const { forceHttps, notFoundPage, notFoundPages, hsts, directoryListing } =
+        /** @type {{ forceHttps?: unknown, notFoundPage?: unknown, notFoundPages?: unknown, hsts?: unknown, directoryListing?: unknown }} */ (raw);
 
     /** @type {ApacheConfig} */
     const config = {
@@ -86,8 +87,13 @@ export function parseApacheBlock(raw) {
         notFoundPage: safePath(notFoundPage, 'notFoundPage'),
         notFoundPages: parseNotFoundPages(notFoundPages),
         hstsMaxAge: parseHsts(hsts),
+        ...(directoryListing === false ? { directoryListing: /** @type {const} */ (false) } : {}),
     };
     const enabled =
-        config.forceHttps || config.notFoundPage || (config.notFoundPages?.length ?? 0) > 0 || config.hstsMaxAge;
+        config.forceHttps ||
+        config.notFoundPage ||
+        (config.notFoundPages?.length ?? 0) > 0 ||
+        config.hstsMaxAge ||
+        config.directoryListing === false;
     return enabled ? config : null;
 }

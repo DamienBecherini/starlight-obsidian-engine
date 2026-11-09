@@ -2,6 +2,7 @@
 import react from '@astrojs/react';
 import mermaid from 'astro-mermaid';
 import { starlightIntegration } from './starlight/index.mjs';
+import { vaultPublicIntegration } from './vault-public.mjs';
 
 /**
  * React renderer. The engine ships no React component (vault pages are Markdown/MDX rendered by
@@ -12,4 +13,4 @@ import { starlightIntegration } from './starlight/index.mjs';
 const reactIntegration = react({ compiler: false });
 
 /** All Astro integrations for the project. */
-export const integrations = [mermaid({ autoTheme: true }), starlightIntegration, reactIntegration];
+export const integrations = [mermaid({ autoTheme: true }), starlightIntegration, reactIntegration, vaultPublicIntegration()];
