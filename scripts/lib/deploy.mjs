@@ -20,10 +20,11 @@ import {
     markUploaded,
     markDeleted,
     saveManifest,
+    emptyManifest,
     parseManifestJson,
     MANIFEST_FILENAME,
 } from './deploy-manifest.mjs';
-import { isProtectedRel, compareUploadParentKeys, groupUploadsByParent } from './deploy-paths.mjs';
+import { isProtectedRel, compareUploadParentKeys, groupUploadsByParent, isFtpFileAlreadyGone } from './deploy-paths.mjs';
 import { uploadFromDirFiltered } from './ftps-upload.mjs';
 /** Shared SFTP client: parallel uploads (single connection). */
 const SFTP_UPLOAD_CONCURRENCY = 8;
@@ -404,31 +405,6 @@ function listLocalFiles(distDir) {
     return files;
 }
 
-/** @param {string} dir @returns {number} */
-function countLocalFiles(dir) {
-    let total = 0;
-    /** @param {string} d */
-    const walk = (d) => {
-        for (const entry of fs.readdirSync(d, { withFileTypes: true })) {
-            if (isHidden(entry.name)) continue;
-            const abs = path.join(d, entry.name);
-            if (entry.isDirectory()) walk(abs);
-            else if (entry.isFile()) total += 1;
-        }
-    };
-    walk(dir);
-    return total;
-}
-
-/** @param {string} dir @returns {boolean} */
-function isFlatLocalDir(dir) {
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-        if (isHidden(entry.name)) continue;
-        if (entry.isDirectory()) return false;
-    }
-    return true;
-}
-
 /** @param {DeployConfig} config */
 function ftpsAccessOptions(config) {
     return {
@@ -610,7 +586,7 @@ async function deleteRemoteFilesSftp(sftp, normalizedRemote, relPaths, protect, 
     const vaultRoot = resolveVaultGitRoot();
     for (const rel of relPaths) {
         if (isProtectedRel(rel, protect)) continue;
-        await sftp.delete(sftpRemotePath(normalizedRemote, rel));
+        await sftp.delete(sftpRemotePath(normalizedRemote, rel), true); // already gone: nothing to clean up
         markDeleted(manifest, rel, vaultRoot, { persist: false });
         console.log(`  − ${rel}`);
     }
@@ -1220,6 +1196,13 @@ async function deleteRemoteFilesFtps(session, config, remoteBase, relPaths, prot
                 filesSinceReconnect += 1;
                 done = true;
             } catch (error) {
+                if (isFtpFileAlreadyGone(error)) {
+                    markDeleted(manifest, rel, vaultRoot, { persist: false });
+                    console.log(`  · ${rel} (already gone)`);
+                    filesSinceReconnect += 1;
+                    done = true;
+                    continue;
+                }
                 if (isFtpsTransientError(error) && attempt < 3) {
                     await refreshFtpsSession(session, config, remoteBase);
                     filesSinceReconnect = 0;
@@ -1233,132 +1216,6 @@ async function deleteRemoteFilesFtps(session, config, remoteBase, relPaths, prot
         }
     }
     await persistDeployManifest(vaultRoot, manifest, { ftpsClient: session.client, remoteBase });
-}
-
-/**
- * Upload dist/ using uploadFromDir (compatible with chrooted hosts), fresh session per chunk.
- * @param {{ client: FtpClient }} session
- * @param {DeployConfig} config
- * @param {string} distDir
- * @param {string} remoteBase
- * @param {number} totalBytes
- * @param {{ lastFile: string, bytesOverall: number, fileOrdinal: number }} transferState
- */
-async function uploadDistResilientFtps(session, config, distDir, remoteBase, totalBytes, transferState) {
-    const progress = createUploadProgress({ totalBytes });
-    let bytesDone = 0;
-
-    /** @param {string} [chunkLabel] @param {number} [chunkStartBytes] */
-    const attachProgress = (chunkLabel, chunkStartBytes = bytesDone) => {
-        progress.onBytes(chunkStartBytes, chunkLabel ? `[${chunkLabel}]` : '');
-        session.client.trackProgress((info) => {
-            progress.onBytes(chunkStartBytes + info.bytesOverall, info.name);
-            if (info.name) transferState.lastFile = info.name;
-        });
-    };
-
-    const detachProgress = () => {
-        session.client.trackProgress();
-        progress.onBytes(bytesDone, '');
-    };
-
-    const topEntries = fs
-        .readdirSync(distDir, { withFileTypes: true })
-        .filter((e) => !isHidden(e.name))
-        .sort((a, b) => a.name.localeCompare(b.name));
-
-    await prepareFtpsCwd(session, remoteBase);
-
-    for (let i = 0; i < topEntries.length; i++) {
-        const entry = topEntries[i];
-        const localPath = path.join(distDir, entry.name);
-        const chunkLabel = entry.name;
-
-        if (i > 0) {
-            await refreshFtpsSession(session, config, remoteBase);
-        }
-
-        if (entry.isFile()) {
-            const chunkStartBytes = bytesDone;
-            attachProgress(chunkLabel, chunkStartBytes);
-            try {
-                await session.client.uploadFrom(localPath, entry.name);
-            } finally {
-                detachProgress();
-            }
-            bytesDone = chunkStartBytes + fs.statSync(localPath).size;
-            progress.onBytes(bytesDone, entry.name);
-            transferState.fileOrdinal += 1;
-            transferState.bytesOverall = bytesDone;
-            continue;
-        }
-
-        if (!entry.isDirectory()) continue;
-
-        const fileCount = countLocalFiles(localPath);
-        const hiddenFilter = (/** @type {string} */ name) => !isHidden(name);
-
-        if (fileCount <= FTPS_MAX_FILES_PER_SESSION || !isFlatLocalDir(localPath)) {
-            const chunkStartBytes = bytesDone;
-            attachProgress(chunkLabel, chunkStartBytes);
-            try {
-                await ftpsUploadFromDirWithRetry(
-                    session,
-                    config,
-                    remoteBase,
-                    localPath,
-                    entry.name,
-                    hiddenFilter,
-                );
-            } finally {
-                detachProgress();
-            }
-            bytesDone = chunkStartBytes + sumLocalBytes(localPath);
-            progress.onBytes(bytesDone, chunkLabel);
-            transferState.fileOrdinal += 1;
-            transferState.bytesOverall = bytesDone;
-            continue;
-        }
-
-        const names = fs
-            .readdirSync(localPath)
-            .filter((n) => !isHidden(n))
-            .sort((a, b) => a.localeCompare(b));
-        for (let b = 0; b < names.length; b += FTPS_MAX_FILES_PER_SESSION) {
-            const batch = names.slice(b, b + FTPS_MAX_FILES_PER_SESSION);
-            const batchSet = new Set(batch);
-            if (b > 0) {
-                await refreshFtpsSession(session, config, remoteBase);
-            }
-            const batchStartBytes = bytesDone;
-            attachProgress(
-                `${chunkLabel} (${Math.floor(b / FTPS_MAX_FILES_PER_SESSION) + 1})`,
-                batchStartBytes,
-            );
-            try {
-                await ftpsUploadFromDirWithRetry(
-                    session,
-                    config,
-                    remoteBase,
-                    localPath,
-                    entry.name,
-                    (name) => batchSet.has(name),
-                );
-            } finally {
-                detachProgress();
-            }
-            let batchBytes = 0;
-            for (const name of batch) {
-                batchBytes += fs.statSync(path.join(localPath, name)).size;
-            }
-            bytesDone = batchStartBytes + batchBytes;
-            progress.onBytes(bytesDone, batch.at(-1) ?? chunkLabel);
-            transferState.bytesOverall = bytesDone;
-        }
-        transferState.fileOrdinal += 1;
-    }
-
-    progress.finish();
 }
 
 /**
@@ -1390,13 +1247,18 @@ async function uploadDistFtpsFull(config, distDir, mirror, askConfirm) {
             console.log(
                 `\n🚀 Full upload dist/ (${humanBytes(totalBytes)}) → ftps://${config.host}:${config.port} (${absoluteTarget}) …`,
             );
-            await uploadDistResilientFtps(session, config, distDir, remoteBase, totalBytes, transferState);
+            // Same batches as the incremental deploy: one session per 45 files, whatever the folder depth
+            // (a nested folder such as pagefind/ sent in one session is cut off by o2switch).
+            const local = await hashDistTree(distDir);
+            const uploads = [...local].map(([rel, entry]) => ({ rel, abs: path.join(distDir, rel), entry }));
+            await uploadSelectedFilesFtps(session, config, distDir, remoteBase, uploads, emptyManifest(config), transferState);
             console.log('✅ Upload complete.');
         };
 
         const doMirror = mirrorActive
             ? async () => {
                   console.log('\n🧹 Mirror: removing remote files not present locally…');
+                  await refreshFtpsSession(session, config, remoteBase);
                   await mirrorRemoteFtps(session.client, remoteBase, localFiles, protect);
                   console.log('✅ Mirror complete.');
               }
@@ -1436,6 +1298,7 @@ async function uploadDistFtpsFull(config, distDir, mirror, askConfirm) {
         console.log('\n📝 Refreshing deploy manifest from dist/…');
         const local = await hashDistTree(distDir);
         const refreshed = manifestFromLocal(config, local);
+        await refreshFtpsSession(session, config, remoteBase);
         await persistDeployManifest(resolveVaultGitRoot(), refreshed, {
             ftpsClient: session.client,
             remoteBase,

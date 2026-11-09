@@ -48,3 +48,14 @@ export function groupUploadsByParent(distDir, uploads) {
     }
     return groups;
 }
+
+/**
+ * FTP answers 550 "No such file" when a file to remove is already gone (a deploy that ran at the
+ * same time, or an interrupted cleanup). Other 550 answers, such as a permission error, stay errors.
+ * @param {unknown} error
+ * @returns {boolean}
+ */
+export function isFtpFileAlreadyGone(error) {
+    if (!(error instanceof Error) || !('code' in error) || error.code !== 550) return false;
+    return /no such file/i.test(error.message);
+}
