@@ -10,6 +10,7 @@ import { rehypeLocalizedLinks } from './rehype/localized-links.mjs';
 import { isLexiconEnabled, loadLexiconConfig } from './lexicon.mjs';
 import { loadSiteConfig } from './site.mjs';
 import { projectRoot, resolveVaultGitRoot } from './vault.mjs';
+import { wikiLinkPermalink } from './wiki-link-permalink.mjs';
 
 const vaultRoot = resolveVaultGitRoot();
 const lexicon = loadLexiconConfig(vaultRoot);
@@ -59,7 +60,7 @@ export const markdown = {
                         const clean = permalink.replace(/\/index$/i, '');
                         return `/${clean}/`;
                     },
-                    pageResolver: (/** @type {string} */ name) => [name.trim().replace(/ /g, '-').toLowerCase()],
+                    pageResolver: (/** @type {string} */ name) => [wikiLinkPermalink(name)],
                 },
             ],
         ],
