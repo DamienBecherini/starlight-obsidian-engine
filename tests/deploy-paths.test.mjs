@@ -6,6 +6,7 @@ import {
     isProtectedRel,
     compareUploadParentKeys,
     groupUploadsByParent,
+    isFtpFileAlreadyGone,
 } from '../scripts/lib/deploy-paths.mjs';
 
 test('isProtectedRel checks top-level segment only', () => {
@@ -32,4 +33,13 @@ test('groupUploadsByParent groups by posix parent directory', () => {
     assert.equal(groups.get('.')?.items.length, 1);
     assert.equal(groups.get('_astro')?.items.length, 2);
     assert.equal(groups.get('_astro')?.localDir, path.join(distDir, '_astro'));
+});
+
+test('isFtpFileAlreadyGone accepts only a missing file', () => {
+    const ftp = (/** @type {number} */ code, /** @type {string} */ message) => Object.assign(new Error(message), { code });
+    assert.equal(isFtpFileAlreadyGone(ftp(550, '550 pagefind/a.pf_fragment: No such file or directory')), true);
+    assert.equal(isFtpFileAlreadyGone(ftp(550, '550 a.txt: Permission denied')), false);
+    assert.equal(isFtpFileAlreadyGone(ftp(421, 'No such file')), false);
+    assert.equal(isFtpFileAlreadyGone(new Error('No such file')), false);
+    assert.equal(isFtpFileAlreadyGone('550 No such file'), false);
 });
