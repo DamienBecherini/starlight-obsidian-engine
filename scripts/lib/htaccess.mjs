@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * Apache `.htaccess` site rules from site.config.json → `apache` (HTTPS redirect, 404 pages, HSTS).
+ * Apache `.htaccess` site rules from site.config.json → `apache` (HTTPS redirect, 404 pages, HSTS, directory listing).
  * Deploy never uploads dotfiles, so these rules reach the server through `auth:install`
  * (prepended to the Basic Auth rules), `auth:remove` (uploaded alone) or `htaccess:install`.
  */
@@ -19,11 +19,18 @@ const HEADER = '# Site rules generated from site.config.json "apache" (starlight
 export function buildSiteHtaccess(apache) {
     if (
         !apache ||
-        (!apache.forceHttps && !apache.notFoundPage && !apache.notFoundPages?.length && !apache.hstsMaxAge)
+        (!apache.forceHttps &&
+            !apache.notFoundPage &&
+            !apache.notFoundPages?.length &&
+            !apache.hstsMaxAge &&
+            apache.directoryListing !== false)
     ) {
         return '';
     }
     const lines = [HEADER];
+    if (apache.directoryListing === false) {
+        lines.push('', '# Do not list the contents of folders that have no index page.', 'Options -Indexes');
+    }
     if (apache.forceHttps) {
         lines.push(
             '',
@@ -78,7 +85,8 @@ export function mergeHtaccess(...sections) {
 export function describeApacheConfig(apache) {
     if (!apache) return 'none (no apache block in site.config.json)';
     const localized = apache.notFoundPages?.map(({ prefix, page }) => `${prefix}→${page}`).join(' ') || 'none';
-    return `forceHttps=${apache.forceHttps}, notFoundPage=${apache.notFoundPage ?? 'none'}, notFoundPages=${localized}, hsts=${apache.hstsMaxAge ?? 'off'}`;
+    const listing = apache.directoryListing === false ? ', directoryListing=off' : '';
+    return `forceHttps=${apache.forceHttps}, notFoundPage=${apache.notFoundPage ?? 'none'}, notFoundPages=${localized}, hsts=${apache.hstsMaxAge ?? 'off'}${listing}`;
 }
 
 /** Basic Auth settings that mean `.htaccess` is owned by `auth:install`. */

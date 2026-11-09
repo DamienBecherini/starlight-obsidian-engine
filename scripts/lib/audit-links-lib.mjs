@@ -1,6 +1,7 @@
 // @ts-check
 import fs from 'node:fs';
 import path from 'node:path';
+import { listVaultPublicFiles } from '../../config/vault-public.mjs';
 import { collectUnresolvedLinks, normalizeLinkTarget, pageResolver } from './link-graph.mjs';
 
 /** @typedef {{ from: string, raw: string, path: string }} UnresolvedLink */
@@ -166,7 +167,8 @@ export function partitionUnresolvedLinks(unresolved, allowlist) {
  * @returns {LinkAuditResult}
  */
 export function runLinkAudit(vaultRoot) {
-    const unresolved = collectUnresolvedLinks(vaultRoot);
+    const publicFiles = new Set(listVaultPublicFiles(vaultRoot));
+    const unresolved = collectUnresolvedLinks(vaultRoot).filter((item) => !publicFiles.has(item.path));
     const allowlist = loadLinkAuditAllowlist(vaultRoot);
     const { allowed, unexpected } = partitionUnresolvedLinks(unresolved, allowlist);
     return { unresolved, allowed, unexpected, allowlist };

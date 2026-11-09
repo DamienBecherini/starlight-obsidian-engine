@@ -80,6 +80,17 @@ test('buildSiteHtaccess emits only the configured rules', () => {
     assert.doesNotMatch(httpsOnly, /ErrorDocument/);
 });
 
+test('directoryListing false disables folder listings and nothing else', () => {
+    const config = parseApacheBlock({ directoryListing: false });
+    assert.equal(config?.directoryListing, false);
+    const rules = buildSiteHtaccess(config);
+    assert.match(rules, /^Options -Indexes$/m);
+    assert.doesNotMatch(rules, /Rewrite|ErrorDocument|Strict-Transport/);
+    assert.match(describeApacheConfig(config), /directoryListing=off$/);
+    assert.equal(parseApacheBlock({ directoryListing: true }), null);
+    assert.doesNotMatch(buildSiteHtaccess({ forceHttps: true, notFoundPage: null }), /Options/);
+});
+
 test('mergeHtaccess joins non-empty sections, site rules first', () => {
     assert.equal(mergeHtaccess('', ''), '');
     assert.equal(mergeHtaccess('A\n', '\nB\n'), 'A\n\nB\n');
