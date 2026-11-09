@@ -873,7 +873,7 @@ async function listRemoteFilesFtps(client, remoteRoot, protect) {
  * @param {Set<string>} localFiles
  * @param {Set<string>} protect Top-level names never deleted.
  */
-async function mirrorRemoteFtps(client, remoteRoot, localFiles, protect) {
+export async function mirrorRemoteFtps(client, remoteRoot, localFiles, protect) {
     /** @type {string[]} */
     const pendingDeletes = [];
     /** @param {string} remoteDir @param {string} rel */
@@ -929,7 +929,13 @@ async function mirrorRemoteFtps(client, remoteRoot, localFiles, protect) {
             }
         }
     };
-    await pruneEmptyDirs(remoteRoot, '');
+    try {
+        await pruneEmptyDirs(remoteRoot, '');
+    } catch (error) {
+        if (!isFtpsTransientError(error)) throw error;
+        // Files are in place at this point: empty folders left on the server change nothing for the site.
+        console.warn('⚠️  Connection lost while removing empty remote folders: they stay, the deploy is complete.');
+    }
 }
 
 /**
