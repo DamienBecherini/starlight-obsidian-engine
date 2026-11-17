@@ -10,6 +10,9 @@
 [![i18n](https://img.shields.io/badge/i18n-ready-0A7EA4)](https://starlight.astro.build/guides/i18n/)
 [![License: 0BSD](https://img.shields.io/badge/License-0BSD-brightgreen.svg)](./LICENSE)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-success.svg)](#contributing)
+[![CI](https://github.com/DamienBecherini/starlight-obsidian-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/DamienBecherini/starlight-obsidian-engine/actions/workflows/ci.yml)
+
+**[See it live → ia-on-prem.damien.becherini.fr](https://ia-on-prem.damien.becherini.fr)**
 
 </div>
 
@@ -18,6 +21,14 @@
 A **generic Astro + Starlight engine** that turns one or more **Obsidian** vaults into fast, multilingual
 static documentation sites. The engine (this repo) and the content (your vaults) live in **separate
 repositories**: edit your notes in Obsidian, let the engine publish them.
+
+![A page of the guide Zero to Hero: On-Premise AI, published by this engine: sidebar, callouts, table of contents and incoming links](docs/images/ia-on-prem-page.png)
+
+**In production:** this engine publishes the guide
+[Zero to Hero: On-Premise AI](https://ia-on-prem.damien.becherini.fr)
+([vault repository](https://github.com/DamienBecherini/ia-on-prem-vault)), about 280 notes in French and English.
+190 unit tests (`node --test`) plus a smoke build run on every push and pull request; a weekly workflow builds the
+real public vaults to catch loader regressions; deploys are incremental over FTPS or SFTP.
 
 ## Why?
 
@@ -35,10 +46,10 @@ repositories**: edit your notes in Obsidian, let the engine publish them.
 ```
 Webdev/
 ├─ starlight-obsidian-engine/   ← this repo (engine, shared)
-├─ ia-on-prem-vault/            ← vault A (content, private)
+├─ ia-on-prem-vault/            ← vault A (content, public)
 │   ├─ site.config.json         (title, url, locales, sidebar, social)
 │   ├─ index.mdx
-│   └─ 01-foundations/…
+│   └─ 01-fondations/…
 └─ software-craft-vault/        ← vault B (content, private)
     ├─ site.config.json
     └─ …
