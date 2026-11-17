@@ -6,6 +6,8 @@ import { isLexiconEnabled } from '../../config/lexicon.mjs';
 
 export const BACKLINK_HEADING_DOC = 'Références entrantes';
 export const BACKLINK_HEADING_LEXICON = 'Pages qui mentionnent ce terme';
+export const BACKLINK_HEADING_DOC_EN = 'Incoming links';
+export const BACKLINK_HEADING_LEXICON_EN = 'Pages that mention this term';
 
 /**
  * Lexicon UI variant: vault path under `lexicon.directory`, excluding hub/index slugs.
@@ -23,11 +25,16 @@ export function isLexiconBacklinkPage(currentSlug, lexicon, excludeTargetSlugs) 
 }
 
 /**
+ * Panel heading in the page language: French for `fr*` pages, English otherwise
+ * (same rule as the prerequisites box).
  * @param {boolean} isLexiconPage
+ * @param {string | undefined} lang BCP 47 language of the page (Starlight `route.lang`).
  * @returns {string}
  */
-export function backlinkPanelHeading(isLexiconPage) {
-    return isLexiconPage ? BACKLINK_HEADING_LEXICON : BACKLINK_HEADING_DOC;
+export function backlinkPanelHeading(isLexiconPage, lang) {
+    const isFrench = (lang ?? '').toLowerCase().split('-')[0] === 'fr';
+    if (isLexiconPage) return isFrench ? BACKLINK_HEADING_LEXICON : BACKLINK_HEADING_LEXICON_EN;
+    return isFrench ? BACKLINK_HEADING_DOC : BACKLINK_HEADING_DOC_EN;
 }
 
 /**
@@ -112,6 +119,7 @@ export function groupBacklinkEntries(entries, isLexiconPage, sortLocale = 'fr') 
  *   exclusions: { excludeSourceSlugs: Set<string>, excludeTargetSlugs: Set<string> },
  *   sortLocale?: string,
  *   seeAlsoSlugs?: Set<string>,
+ *   lang?: string,
  * }} input
  */
 export function buildBacklinkPanel(input) {
@@ -122,6 +130,7 @@ export function buildBacklinkPanel(input) {
         exclusions,
         sortLocale = 'fr',
         seeAlsoSlugs,
+        lang,
     } = input;
     const entries = excludeSeeAlsoSources(
         resolveBacklinkPanelEntries(rawEntries, currentSlug, exclusions),
@@ -135,7 +144,7 @@ export function buildBacklinkPanel(input) {
     return {
         entries,
         isLexiconPage,
-        heading: backlinkPanelHeading(isLexiconPage),
+        heading: backlinkPanelHeading(isLexiconPage, lang),
         grouped: groupBacklinkEntries(entries, isLexiconPage, sortLocale),
         shouldRender: entries.length > 0,
     };

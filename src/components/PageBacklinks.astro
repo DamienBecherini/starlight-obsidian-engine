@@ -107,6 +107,7 @@ const panel = buildBacklinkPanel({
     exclusions,
     sortLocale: isLexiconEnabled(lexicon) ? lexicon.sortLocale : 'fr',
     seeAlsoSlugs,
+    lang: route.lang,
 });
 
 const { entries, isLexiconPage, heading, grouped: sortedGroups, shouldRender } = panel;

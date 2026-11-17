@@ -5,7 +5,9 @@ import { getLexiconExcludeSlugs } from '../config/lexicon.mjs';
 import { siteHrefFromVaultSlug } from '../src/lib/backlinks-routing.mjs';
 import {
     BACKLINK_HEADING_DOC,
+    BACKLINK_HEADING_DOC_EN,
     BACKLINK_HEADING_LEXICON,
+    BACKLINK_HEADING_LEXICON_EN,
     backlinkPanelHeading,
     backlinkSectionHeading,
     buildBacklinkPanel,
@@ -90,8 +92,16 @@ test('isLexiconBacklinkPage excludes lexicon hub and generated index targets', (
 });
 
 test('backlinkPanelHeading selects lexicon vs doc label', () => {
-    assert.equal(backlinkPanelHeading(true), BACKLINK_HEADING_LEXICON);
-    assert.equal(backlinkPanelHeading(false), BACKLINK_HEADING_DOC);
+    assert.equal(backlinkPanelHeading(true, 'fr'), BACKLINK_HEADING_LEXICON);
+    assert.equal(backlinkPanelHeading(false, 'fr'), BACKLINK_HEADING_DOC);
+});
+
+test('backlinkPanelHeading follows the page language: French for fr pages, English otherwise', () => {
+    assert.equal(backlinkPanelHeading(false, 'fr-CA'), BACKLINK_HEADING_DOC);
+    assert.equal(backlinkPanelHeading(false, 'en'), BACKLINK_HEADING_DOC_EN);
+    assert.equal(backlinkPanelHeading(true, 'en'), BACKLINK_HEADING_LEXICON_EN);
+    assert.equal(backlinkPanelHeading(false, 'de'), BACKLINK_HEADING_DOC_EN);
+    assert.equal(backlinkPanelHeading(false, undefined), BACKLINK_HEADING_DOC_EN);
 });
 
 test('resolveBacklinkPanelEntries drops hub/index sources but keeps cross-section links', () => {
@@ -179,6 +189,7 @@ test('buildBacklinkPanel regression: lexicon entry RAM panel', () => {
         lexicon: lexiconEnabled,
         exclusions,
         sortLocale: 'fr',
+        lang: 'fr',
     });
 
     assert.equal(panel.shouldRender, true);
@@ -196,6 +207,7 @@ test('buildBacklinkPanel regression: chapter page uses doc heading', () => {
         rawEntries: raw,
         lexicon: lexiconEnabled,
         exclusions,
+        lang: 'fr',
     });
 
     assert.equal(panel.isLexiconPage, false);
