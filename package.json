@@ -45,6 +45,7 @@
   "dependencies": {
     "@astrojs/markdown-remark": "^7.3.8",
     "@astrojs/react": "^7.1.8",
+    "@astrojs/sitemap": "^3.7.4",
     "@astrojs/starlight": "^0.42.11",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",

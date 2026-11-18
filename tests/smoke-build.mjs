@@ -83,6 +83,23 @@ try {
     assert.match(enHtml, /<a[^>]*href="\/00-index\/fr-only\/"[^>]*hreflang="fr"/);
     assert.doesNotMatch(enHtml, /href="\/glossary\/term/);
 
+    // Indexing: seo.noindex covers glossary/** in every locale, frontmatter noindex: false wins on the EN entry.
+    const robotsNoindex = /<meta name="robots" content="noindex, follow"/;
+    assert.match(termHtml, robotsNoindex, 'FR glossary entry is noindex (site.config.json pattern)');
+    const enTermHtml = fs.readFileSync(path.join(distDir, 'en', 'glossary', 'term', 'index.html'), 'utf8');
+    assert.doesNotMatch(enTermHtml, robotsNoindex, 'frontmatter noindex: false overrides the pattern');
+    assert.doesNotMatch(html, robotsNoindex, 'ordinary pages stay indexable');
+    // Sitemap: noindex page removed (alternates too), lastmod from frontmatter last_modified.
+    const sitemapXml = fs
+        .readdirSync(distDir)
+        .filter((name) => /^sitemap-\d+\.xml$/.test(name))
+        .map((name) => fs.readFileSync(path.join(distDir, name), 'utf8'))
+        .join('');
+    assert.ok(sitemapXml, 'a sitemap is written');
+    assert.doesNotMatch(sitemapXml, /https:\/\/docs\.example\.com\/glossary\/term\//, 'noindex page out of the sitemap');
+    assert.match(sitemapXml, /<loc>https:\/\/docs\.example\.com\/en\/glossary\/term\/<\/loc>/);
+    assert.match(sitemapXml, /<loc>https:\/\/docs\.example\.com\/00-index\/<\/loc><lastmod>2026-11-01<\/lastmod>/);
+
     const robots = path.join(distDir, 'robots.txt');
     assert.ok(fs.existsSync(robots), `Expected ${robots} to exist`);
     assert.equal(

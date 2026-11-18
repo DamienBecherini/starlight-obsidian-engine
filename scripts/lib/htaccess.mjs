@@ -8,6 +8,14 @@
 /** Apache expression: the request came over HTTPS (directly or through a TLS proxy). */
 export const HTTPS_EXPRESSION = "%{HTTPS} == 'on' || req('X-Forwarded-Proto') == 'https'";
 
+/**
+ * Escapes a path for a RewriteRule pattern.
+ * @param {string} value
+ */
+function escapeRegex(value) {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 /** Marker line opening the generated block. */
 const HEADER = '# Site rules generated from site.config.json "apache" (starlight-obsidian-engine).';
 
@@ -23,7 +31,9 @@ export function buildSiteHtaccess(apache) {
             !apache.notFoundPage &&
             !apache.notFoundPages?.length &&
             !apache.hstsMaxAge &&
-            apache.directoryListing !== false)
+            apache.directoryListing !== false &&
+            !apache.mergeSlashes &&
+            !apache.redirects?.length)
     ) {
         return '';
     }
@@ -42,6 +52,23 @@ export function buildSiteHtaccess(apache) {
             'RewriteCond %{HTTP:X-Forwarded-Proto} !https',
             'RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]',
         );
+    }
+    if (apache.mergeSlashes) {
+        lines.push(
+            '',
+            '# One URL per page: a path holding // is redirected to the same path with single slashes (one run per',
+            '# redirect). Read from THE_REQUEST, the path as sent, since Apache may already have merged them elsewhere.',
+            'RewriteEngine On',
+            'RewriteCond %{THE_REQUEST} ^\\S+\\s+([^?\\s]*?)//+([^?\\s]*)',
+            'RewriteRule ^ %1/%2 [L,R=301,NE]',
+        );
+    }
+    if (apache.redirects?.length) {
+        lines.push('', '# Old URLs moved for good.', 'RewriteEngine On');
+        for (const { from, to } of apache.redirects) {
+            const pattern = escapeRegex(from.replace(/^\/+/, '').replace(/\/+$/, ''));
+            lines.push(`RewriteRule ^${pattern}/?$ ${to} [L,R=301]`);
+        }
     }
     if (apache.notFoundPage) {
         lines.push('', '# Serve the site\'s own 404 page.', `ErrorDocument 404 ${apache.notFoundPage}`);
@@ -86,7 +113,9 @@ export function describeApacheConfig(apache) {
     if (!apache) return 'none (no apache block in site.config.json)';
     const localized = apache.notFoundPages?.map(({ prefix, page }) => `${prefix}→${page}`).join(' ') || 'none';
     const listing = apache.directoryListing === false ? ', directoryListing=off' : '';
-    return `forceHttps=${apache.forceHttps}, notFoundPage=${apache.notFoundPage ?? 'none'}, notFoundPages=${localized}, hsts=${apache.hstsMaxAge ?? 'off'}${listing}`;
+    const slashes = apache.mergeSlashes ? ', mergeSlashes=on' : '';
+    const redirects = apache.redirects?.length ? `, redirects=${apache.redirects.length}` : '';
+    return `forceHttps=${apache.forceHttps}, notFoundPage=${apache.notFoundPage ?? 'none'}, notFoundPages=${localized}, hsts=${apache.hstsMaxAge ?? 'off'}${listing}${slashes}${redirects}`;
 }
 
 /** Basic Auth settings that mean `.htaccess` is owned by `auth:install`. */
