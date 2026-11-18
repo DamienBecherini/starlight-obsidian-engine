@@ -43,6 +43,8 @@ const editorialSchema = z.object({
 	prices_valid_as_of: z.string().optional(),
 	/** Vault paths (default-locale form, no extension) listed in the "before reading" box. */
 	prerequisites: z.array(z.string()).optional(),
+	/** true: keep this page out of search engines (overrides site.config.json seo.noindex); false: index it anyway. */
+	noindex: z.boolean().optional(),
 });
 
 export const collections = {

@@ -29,7 +29,7 @@ documentation statiques, rapides et multilingues. Le moteur (ce dépôt) et le c
 **En production :** ce moteur publie le guide
 [Zero to Hero : IA On-Premise](https://ia-on-prem.damien.becherini.fr)
 ([dépôt du vault](https://github.com/DamienBecherini/ia-on-prem-vault)), environ 280 notes en français et en anglais.
-204 tests unitaires (`node --test`) et un build de vérification tournent à chaque push et à chaque pull request ; un
+213 tests unitaires (`node --test`) et un build de vérification tournent à chaque push et à chaque pull request ; un
 workflow hebdomadaire construit les vrais vaults publics pour repérer les régressions du chargeur ; les déploiements
 sont incrémentaux, en FTPS ou en SFTP.
 
@@ -139,7 +139,9 @@ Sur un hébergement Apache (o2switch, cPanel…), le moteur peut générer les r
   "notFoundPage": "/404.html", // ErrorDocument 404 : sert la page 404 du site
   "notFoundPages": { "/en/": "/en/404/" }, // page 404 par préfixe (remplace notFoundPage sous /en/)
   "hsts": true,                // Strict-Transport-Security, réponses HTTPS seulement ; true = 1 an, ou un nombre de secondes
-  "directoryListing": false    // Options -Indexes : les dossiers sans page d'index ne sont pas listés
+  "directoryListing": false,   // Options -Indexes : les dossiers sans page d'index ne sont pas listés
+  "mergeSlashes": true,        // 301 /a//b/ → /a/b/ : une seule URL par page
+  "redirects": { "/01-fondations/index/": "/01-fondations/" } // 301 exactes pour les pages déplacées
 }
 ```
 
@@ -182,6 +184,26 @@ pas publiés. `npm run audit:links` accepte les liens vers ces fichiers. Relance
   résultats de recherche consacrent leur largeur aux mots.
 - **Balises sociales** : Starlight émet déjà `twitter:card` ; `Head.astro` n'ajoute que ce qui manque (`og:image` /
   `twitter:image` à partir de `ogImage`, `author`, `article:*`).
+
+### Indexation par les moteurs de recherche (`seo` dans `site.config.json`, `noindex` dans le frontmatter)
+
+Tenir des pages à l'écart des moteurs de recherche tout en les gardant publiées (liens, infobulles du lexique,
+recherche interne) :
+
+```jsonc
+"seo": {
+  "noindex": ["00-lexique/**", "!00-lexique/ai-glossary", "!00-lexique/index-lexique"]
+}
+```
+
+- Les motifs suivent la syntaxe de `.gitignore`, sur le chemin de la page sans extension, écrit une seule fois sous sa
+  forme dans la langue par défaut : ils couvrent aussi chaque miroir traduit (`en/00-lexique/...`). `!` réintègre une
+  page.
+- Le frontmatter d'une page l'emporte sur les motifs : `noindex: true` l'exclut, `noindex: false` la fait indexer
+  quand même.
+- Une page exclue reçoit `<meta name="robots" content="noindex, follow">` (ses liens restent suivis) et sort du
+  sitemap, liens alternatifs compris.
+- Chaque entrée restante du sitemap reçoit un `<lastmod>` tiré du `last_modified` du frontmatter de la page.
 
 ### Lexique facultatif (`site.config.json`)
 
@@ -331,7 +353,7 @@ npm run test:build
 **Couvert :** différence du manifeste de déploiement incrémental, filtrage gitignore / `_private` du vault, exclusions
 du chargeur de documents du vault, forçage du chemin du vault (`FORCE_VAULT_PATH`), options de ligne de commande du
 déploiement, lecture de la configuration de déploiement (cas nominaux), génération `apr1` / htpasswd Apache, règles
-`.htaccess` du site et lecture du bloc `apache`, robots.txt, JSON-LD et retrait des emojis des titres, affichage de la
+`.htaccess` du site et lecture du bloc `apache`, robots.txt, JSON-LD et retrait des emojis des titres, motifs noindex et réécriture du sitemap, redirections du `.htaccess`, affichage de la
 progression de l'envoi, lancement de npm sans shell, vérification de la clé du serveur SFTP, chemins dangereux du manifeste. Le build de vérification contrôle aussi `robots.txt`, le bloc
 JSON-LD, la présence d'un seul `twitter:card` et le `<title>` sans emoji.
 

@@ -13,6 +13,14 @@
  * @property {LocalizedNotFoundPage[]} [notFoundPages] Per-prefix 404 pages (e.g. one per locale), overriding `notFoundPage`.
  * @property {number | null} [hstsMaxAge] `Strict-Transport-Security` max-age in seconds (HTTPS responses only), or null.
  * @property {false} [directoryListing] Present and `false`: Apache no longer lists folders without an index page.
+ * @property {boolean} [mergeSlashes] 301-redirect a path holding `//` to the same path with single slashes.
+ * @property {Redirect[]} [redirects] Exact-path 301 redirects (old URL → new URL).
+ */
+
+/**
+ * @typedef {Object} Redirect
+ * @property {string} from Old root path, e.g. `/01-fondations/index/` (matched with or without the final slash).
+ * @property {string} to New root path, e.g. `/01-fondations/`.
  */
 
 /** Root-relative path, no whitespace, quotes or control characters (safe in an Apache directive). */
@@ -56,6 +64,31 @@ function parseNotFoundPages(raw) {
 }
 
 /**
+ * @param {unknown} raw `{ "/old/": "/new/" }`
+ * @returns {Redirect[]}
+ */
+function parseRedirects(raw) {
+    if (raw === undefined) return [];
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+        console.warn('⚠️ site.config.json apache.redirects must be an object { "/old/": "/new/" }; ignored.');
+        return [];
+    }
+    /** @type {Redirect[]} */
+    const redirects = [];
+    for (const [from, to] of Object.entries(raw)) {
+        const safeFrom = safePath(from, 'redirects key');
+        const safeTo = safePath(to, `redirects["${from}"]`);
+        if (!safeFrom || !safeTo) continue;
+        if (safeFrom === '/') {
+            console.warn('⚠️ site.config.json apache.redirects cannot redirect the site root "/"; ignored.');
+            continue;
+        }
+        redirects.push({ from: safeFrom, to: safeTo });
+    }
+    return redirects;
+}
+
+/**
  * @param {unknown} raw `true` (one year) or a positive number of seconds.
  * @returns {number | null}
  */
@@ -70,7 +103,8 @@ function parseHsts(raw) {
 
 /**
  * Parses the optional `apache` block of site.config.json:
- * `{ "forceHttps": true, "notFoundPage": "/404.html", "notFoundPages": { "/en/": "/en/404/" }, "hsts": true, "directoryListing": false }`.
+ * `{ "forceHttps": true, "notFoundPage": "/404.html", "notFoundPages": { "/en/": "/en/404/" }, "hsts": true, "directoryListing": false,
+ * "mergeSlashes": true, "redirects": { "/old/": "/new/" } }`.
  * Returns `null` when the block is absent or enables nothing (no `.htaccess` site rules).
  * Invalid values are ignored with a warning.
  * @param {unknown} raw
@@ -78,8 +112,9 @@ function parseHsts(raw) {
  */
 export function parseApacheBlock(raw) {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
-    const { forceHttps, notFoundPage, notFoundPages, hsts, directoryListing } =
-        /** @type {{ forceHttps?: unknown, notFoundPage?: unknown, notFoundPages?: unknown, hsts?: unknown, directoryListing?: unknown }} */ (raw);
+    const { forceHttps, notFoundPage, notFoundPages, hsts, directoryListing, mergeSlashes, redirects } =
+        /** @type {{ forceHttps?: unknown, notFoundPage?: unknown, notFoundPages?: unknown, hsts?: unknown, directoryListing?: unknown, mergeSlashes?: unknown, redirects?: unknown }} */ (raw);
+    const parsedRedirects = parseRedirects(redirects);
 
     /** @type {ApacheConfig} */
     const config = {
@@ -88,12 +123,16 @@ export function parseApacheBlock(raw) {
         notFoundPages: parseNotFoundPages(notFoundPages),
         hstsMaxAge: parseHsts(hsts),
         ...(directoryListing === false ? { directoryListing: /** @type {const} */ (false) } : {}),
+        ...(mergeSlashes === true ? { mergeSlashes: true } : {}),
+        ...(parsedRedirects.length ? { redirects: parsedRedirects } : {}),
     };
     const enabled =
         config.forceHttps ||
         config.notFoundPage ||
         (config.notFoundPages?.length ?? 0) > 0 ||
         config.hstsMaxAge ||
-        config.directoryListing === false;
+        config.directoryListing === false ||
+        config.mergeSlashes === true ||
+        (config.redirects?.length ?? 0) > 0;
     return enabled ? config : null;
 }

@@ -1,6 +1,7 @@
 ---
 title: 🧪 Test Index
 description: Minimal fixture page for smoke build.
+last_modified: "2026-11-01"
 prerequisites:
   - glossary/term
   - missing/page

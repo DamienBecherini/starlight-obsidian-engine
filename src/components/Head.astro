@@ -14,6 +14,7 @@ import {
     hasHeadMeta,
     serializeJsonLd,
 } from '../../config/seo.mjs';
+import { isNoindex } from '../../config/seo-indexing.mjs';
 
 const site = loadSiteConfig();
 const lexicon = loadLexiconConfig(resolveVaultGitRoot());
@@ -26,7 +27,14 @@ const articleAuthor = site.editorial?.hitl?.url ?? site.editorial?.hitl?.name ??
 const twitterCard = ogImage && !hasHeadMeta(head, 'twitter:card');
 const twitterImage = ogImage && !hasHeadMeta(head, 'twitter:image');
 
-const data = route.entry.data as typeof route.entry.data & { last_modified?: string };
+const data = route.entry.data as typeof route.entry.data & { last_modified?: string; noindex?: boolean };
+// Kept out of search engines (site.config.json seo.noindex or frontmatter noindex), still published and linked.
+const noindex = isNoindex({
+    id: route.entry.id,
+    frontmatter: data.noindex,
+    patterns: site.seo?.noindex ?? [],
+    localeKeys: Object.keys(site.locales ?? {}).filter((key) => key !== 'root'),
+});
 // Article dates come from frontmatter `last_modified`, never from the build clock: a build-time date
 // changed every page on every build, so incremental deploys re-uploaded the whole site.
 const articleDate = data.last_modified?.trim() || undefined;
@@ -46,6 +54,7 @@ const jsonLd = serializeJsonLd(
 ---
 
 <Default><slot /></Default>
+{noindex && <meta name="robots" content="noindex, follow" />}
 {ogImage && <meta property="og:image" content={ogImage} />}
 {twitterCard && <meta name="twitter:card" content="summary_large_image" />}
 {twitterImage && <meta name="twitter:image" content={ogImage} />}

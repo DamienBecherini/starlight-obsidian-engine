@@ -29,7 +29,7 @@ repositories**: edit your notes in Obsidian, let the engine publish them.
 **In production:** this engine publishes the guide
 [Zero to Hero: On-Premise AI](https://ia-on-prem.damien.becherini.fr)
 ([vault repository](https://github.com/DamienBecherini/ia-on-prem-vault)), about 280 notes in French and English.
-204 unit tests (`node --test`) plus a smoke build run on every push and pull request; a weekly workflow builds the
+213 unit tests (`node --test`) plus a smoke build run on every push and pull request; a weekly workflow builds the
 real public vaults to catch loader regressions; deploys are incremental over FTPS or SFTP.
 
 ## Why?
@@ -133,7 +133,9 @@ On an Apache host (o2switch, cPanel…), the engine can generate `.htaccess` sit
   "notFoundPage": "/404.html", // ErrorDocument 404: serve the site's own 404 page
   "notFoundPages": { "/en/": "/en/404/" }, // per-prefix 404 page (overrides notFoundPage under /en/)
   "hsts": true,                // Strict-Transport-Security, HTTPS responses only; true = 1 year, or seconds
-  "directoryListing": false    // Options -Indexes: folders without an index page are not listed
+  "directoryListing": false,   // Options -Indexes: folders without an index page are not listed
+  "mergeSlashes": true,        // 301 /a//b/ → /a/b/: one URL per page
+  "redirects": { "/01-fondations/index/": "/01-fondations/" } // exact-path 301s for moved pages
 }
 ```
 
@@ -174,6 +176,23 @@ these files. Restart `npm run dev` after adding one.
   spend their width on words.
 - **Social tags** — Starlight already emits `twitter:card`; `Head.astro` only adds what is missing
   (`og:image` / `twitter:image` from `ogImage`, `author`, `article:*`).
+
+### Search engine indexing (`seo` in `site.config.json`, `noindex` in frontmatter)
+
+Keep pages out of search engines while they stay published (links, lexicon tooltips, on-site search):
+
+```jsonc
+"seo": {
+  "noindex": ["00-lexique/**", "!00-lexique/ai-glossary", "!00-lexique/index-lexique"]
+}
+```
+
+- Patterns use `.gitignore` syntax on the page path without extension, written once in default-locale form: they
+  also cover every locale mirror (`en/00-lexique/...`). `!` brings a page back.
+- A page's frontmatter wins over the patterns: `noindex: true` keeps it out, `noindex: false` indexes it anyway.
+- A noindex page gets `<meta name="robots" content="noindex, follow">` (its links are still followed) and is removed
+  from the sitemap, alternate links included.
+- Every remaining sitemap entry gets a `<lastmod>` from the page's frontmatter `last_modified`.
 
 ### Optional lexicon (`site.config.json`)
 
@@ -323,7 +342,7 @@ npm run test:build
 **Covered:** incremental deploy manifest diff, vault gitignore / `_private` filtering, vault docs
 loader exclusion, vault path override (`FORCE_VAULT_PATH`), deploy CLI flags, deploy config
 parsing (success paths), Apache `apr1` / htpasswd generation, `.htaccess` site rules and `apache` block
-parsing, robots.txt, JSON-LD and title emoji stripping, upload progress formatting, running npm without a shell, SFTP host key check, unsafe manifest paths. The smoke build also
+parsing, robots.txt, JSON-LD and title emoji stripping, noindex patterns and sitemap rewriting, `.htaccess` redirects, upload progress formatting, running npm without a shell, SFTP host key check, unsafe manifest paths. The smoke build also
 checks `robots.txt`, the JSON-LD block, a single `twitter:card` and the emoji-free `<title>`.
 
 **Not covered (by design):** real FTPS/SFTP transfers, interactive `publish.mjs` git prompts,

@@ -4,6 +4,7 @@ import path from 'node:path';
 import { resolveVaultPath } from './vault.mjs';
 import { parseFooterBlock } from './footer.mjs';
 import { parseApacheBlock } from './apache.mjs';
+import { parseSeoBlock } from './seo-indexing.mjs';
 
 /** @type {NonNullable<import('@astrojs/starlight/types').StarlightUserConfig['sidebar']>} */
 const defaultSidebar = [
@@ -41,6 +42,7 @@ const defaultLocales = {
  * @property {Editorial} [editorial]
  * @property {import('./footer.mjs').FooterConfig} [footer] Site-wide footer note (see config/footer.mjs).
  * @property {import('./apache.mjs').ApacheConfig | null} [apache] Apache `.htaccess` site rules (see config/apache.mjs).
+ * @property {import('./seo-indexing.mjs').SeoConfig} [seo] Pages kept out of search engines (see config/seo-indexing.mjs).
  * @property {string} [defaultLocale]
  * @property {import('@astrojs/starlight/types').StarlightUserConfig['locales']} [locales]
  * @property {import('@astrojs/starlight/types').StarlightUserConfig['sidebar']} [sidebar]
@@ -49,7 +51,7 @@ const defaultLocales = {
 
 /**
  * Loads site.config.json from the vault root.
- * @returns {Required<Pick<SiteConfig, 'title' | 'defaultLocale' | 'locales' | 'sidebar'>> & Pick<SiteConfig, 'url' | 'ogImage' | 'editorial' | 'footer' | 'apache' | 'social'>}
+ * @returns {Required<Pick<SiteConfig, 'title' | 'defaultLocale' | 'locales' | 'sidebar'>> & Pick<SiteConfig, 'url' | 'ogImage' | 'editorial' | 'footer' | 'apache' | 'seo' | 'social'>}
  */
 export function loadSiteConfig() {
     const vaultPath = resolveVaultPath();
@@ -80,6 +82,7 @@ export function loadSiteConfig() {
             editorial: parsed.editorial || undefined,
             footer: parseFooterBlock(parsed.footer),
             apache: parseApacheBlock(parsed.apache),
+            seo: parseSeoBlock(parsed.seo),
             defaultLocale: parsed.defaultLocale ?? 'root',
             locales: parsed.locales ?? defaultLocales,
             sidebar: parsed.sidebar ?? defaultSidebar,

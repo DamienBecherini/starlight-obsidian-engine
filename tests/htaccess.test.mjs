@@ -177,3 +177,36 @@ test('buildSiteHtaccess emits per-prefix 404 pages and HSTS on HTTPS responses o
         true,
     );
 });
+
+test('mergeSlashes redirects // paths and keeps the rest of the request', () => {
+    const config = parseApacheBlock({ mergeSlashes: true });
+    assert.deepEqual(config, {
+        forceHttps: false,
+        notFoundPage: null,
+        notFoundPages: [],
+        hstsMaxAge: null,
+        mergeSlashes: true,
+    });
+    const rules = buildSiteHtaccess(config);
+    assert.ok(rules.includes(String.raw`RewriteCond %{THE_REQUEST} ^\S+\s+([^?\s]*?)//+([^?\s]*)`));
+    assert.ok(rules.includes('RewriteRule ^ %1/%2 [L,R=301,NE]'));
+    // The condition captures what the substitution rebuilds.
+    const condition = /^\S+\s+([^?\s]*?)\/\/+([^?\s]*)/;
+    const [, before, after] = 'GET /04-blueprints/scenario-c//?x=1 HTTP/1.1'.match(condition) ?? [];
+    assert.equal(`${before}/${after}`, '/04-blueprints/scenario-c/');
+    assert.equal(condition.test('GET /04-blueprints/scenario-c/?next=//x HTTP/1.1'), false, 'query string is not touched');
+});
+
+test('redirects: exact paths, escaped, root and unsafe paths refused', () => {
+    const config = parseApacheBlock({
+        redirects: { '/01-fondations/index/': '/01-fondations/', '/a.b': '/c/', '/': '/x/', '/bad path/': '/y/' },
+    });
+    assert.deepEqual(config?.redirects, [
+        { from: '/01-fondations/index/', to: '/01-fondations/' },
+        { from: '/a.b', to: '/c/' },
+    ]);
+    const rules = buildSiteHtaccess(config);
+    assert.ok(rules.includes('RewriteRule ^01-fondations/index/?$ /01-fondations/ [L,R=301]'));
+    assert.ok(rules.includes(String.raw`RewriteRule ^a\.b/?$ /c/ [L,R=301]`));
+    assert.equal(parseApacheBlock({ redirects: ['/a/'] }), null);
+});

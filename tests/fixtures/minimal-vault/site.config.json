@@ -6,6 +6,7 @@
     "root": { "label": "Français", "lang": "fr" },
     "en": { "label": "English", "lang": "en" }
   },
+  "seo": { "noindex": ["glossary/**"] },
   "lexicon": {
     "enabled": true,
     "directory": "glossary",
