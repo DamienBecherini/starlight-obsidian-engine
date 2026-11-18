@@ -4,6 +4,7 @@ import { Readable } from 'node:stream';
 import { Client as FtpClient } from 'basic-ftp';
 import SftpClient from 'ssh2-sftp-client';
 import { HTTPS_EXPRESSION, buildSiteHtaccess, mergeHtaccess } from './htaccess.mjs';
+import { sftpConnectOptions } from './sftp-host-key.mjs';
 
 /**
  * @typedef {import('./deploy.mjs').DeployConfig} DeployConfig
@@ -241,14 +242,7 @@ async function withFtps(config, fn) {
 async function withSftp(config, fn) {
     const sftp = new SftpClient();
     try {
-        await sftp.connect({
-            host: config.host,
-            port: config.port,
-            username: config.username,
-            password: config.password,
-            privateKey: config.privateKey,
-            passphrase: config.passphrase,
-        });
+        await sftp.connect(sftpConnectOptions(config));
         const base = normalizeBase(config.remotePath);
         console.log(`   Target: sftp://${config.host}:${config.port}${base}`);
         await fn(sftp, base);
