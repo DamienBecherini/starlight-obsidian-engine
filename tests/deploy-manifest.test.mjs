@@ -7,6 +7,7 @@ import { test } from 'node:test';
 import {
     buildDeployKey,
     diffDistAgainstManifest,
+    isSafeManifestPath,
     emptyManifest,
     ensureManifest,
     mergeManifestSources,
@@ -63,6 +64,30 @@ test('diff skips unchanged hashes', () => {
     assert.equal(diff.toUpload.length, 0);
     assert.equal(diff.unchanged, 1);
     assert.deepEqual(diff.toDelete, ['gone.html']);
+});
+
+test('diff never deletes a manifest path that could leave the deploy root', () => {
+    const manifest = emptyManifest(config);
+    const entry = { sha256: 'x', size: 1 };
+    manifest.files = {
+        'old/page.html': entry,
+        '../outside.txt': entry,
+        'a/../../outside.txt': entry,
+        '/etc/passwd': entry,
+        'a\\..\\b.txt': entry,
+        'a//b.txt': entry,
+        './a.txt': entry,
+        'a\nb.txt': entry,
+    };
+    const diff = diffDistAgainstManifest(new Map(), manifest);
+    assert.deepEqual(diff.toDelete, ['old/page.html']);
+});
+
+test('isSafeManifestPath accepts ordinary nested paths', () => {
+    assert.equal(isSafeManifestPath('_astro/index.abc123.js'), true);
+    assert.equal(isSafeManifestPath('en/00-lexique/llm/index.html'), true);
+    assert.equal(isSafeManifestPath('..hidden-but-not-parent.txt'), true);
+    assert.equal(isSafeManifestPath(''), false);
 });
 
 test('size change triggers upload', () => {

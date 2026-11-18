@@ -26,6 +26,8 @@ import {
 } from './deploy-manifest.mjs';
 import { isProtectedRel, compareUploadParentKeys, groupUploadsByParent, isFtpFileAlreadyGone } from './deploy-paths.mjs';
 import { uploadFromDirFiltered } from './ftps-upload.mjs';
+import { npmCommand } from './npm-spawn.mjs';
+import { sftpConnectOptions } from './sftp-host-key.mjs';
 /** Shared SFTP client: parallel uploads (single connection). */
 const SFTP_UPLOAD_CONCURRENCY = 8;
 /** Persist local manifest during SFTP upload (resume after interrupt). */
@@ -161,6 +163,7 @@ async function persistDeployManifest(vaultRoot, manifest, remote = {}) {
  *   privateKey?: Buffer,
  *   passphrase?: string,
  *   ftpsInsecure?: boolean,
+ *   hostFingerprint?: string,
  *   protect?: string[],
  * }} DeployConfig
  */
@@ -257,10 +260,11 @@ export function runBuild() {
     const stagedSplash = stageVaultSplashMdx();
 
     try {
-        const build = spawnSync('npm', ['run', 'build'], {
+        const npm = npmCommand(['run', 'build']);
+        const build = spawnSync(npm.command, npm.args, {
             cwd: projectRoot,
             stdio: 'inherit',
-            shell: true,
+            shell: npm.shell,
             env: {
                 ...process.env,
                 ASTRO_OUT_DIR: outDir,
@@ -361,6 +365,10 @@ export function deployConfigFromEnv(vaultRoot) {
         config.password = password;
         return config;
     }
+
+    // SFTP only: expected SSH host key fingerprint (SHA256:…), checked before any credential is sent.
+    const hostFingerprint = pick('HOST_FINGERPRINT');
+    if (hostFingerprint) config.hostFingerprint = hostFingerprint;
 
     if (keyPath) {
         const resolved = path.isAbsolute(keyPath) ? keyPath : path.resolve(vaultRoot, keyPath);
@@ -604,14 +612,7 @@ async function uploadDistSftpFull(config, distDir, mirror, askConfirm) {
     const mirrorActive = mirror && Boolean(normalizedRemote);
     const localFiles = listLocalFiles(distDir);
     const sftp = new SftpClient();
-    const connectOptions = {
-        host: config.host,
-        port: config.port,
-        username: config.username,
-        password: config.password,
-        privateKey: config.privateKey,
-        passphrase: config.passphrase,
-    };
+    const connectOptions = sftpConnectOptions(config);
 
     try {
         await sftp.connect(connectOptions);
@@ -696,14 +697,7 @@ async function uploadDistSftpIncremental(config, distDir, mirror, askConfirm) {
     try {
         console.log('\n🔍 Incremental deploy (manifest sync)…');
 
-        await sftp.connect({
-            host: config.host,
-            port: config.port,
-            username: config.username,
-            password: config.password,
-            privateKey: config.privateKey,
-            passphrase: config.passphrase,
-        });
+        await sftp.connect(sftpConnectOptions(config));
 
         console.log('   Syncing manifest from remote…');
         const remoteManifest = await fetchRemoteManifestSftp(sftp, normalizedRemote);

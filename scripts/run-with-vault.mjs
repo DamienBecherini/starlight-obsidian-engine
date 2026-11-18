@@ -17,6 +17,7 @@
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { projectRoot } from '../config/vault.mjs';
+import { npmCommand } from './lib/npm-spawn.mjs';
 
 function printUsage() {
     const registered = Object.keys(process.env)
@@ -65,10 +66,11 @@ console.log(`🗂️  Vault: ${vaultName} → ${abs}`);
 console.log(`📦 Output: ${outDir}`);
 console.log(`▶  npm run ${npmScript}${rest.length ? ' ' + rest.join(' ') : ''}\n`);
 
-const result = spawnSync('npm', ['run', npmScript, ...rest], {
+const npm = npmCommand(['run', npmScript, ...rest]);
+const result = spawnSync(npm.command, npm.args, {
     cwd: projectRoot,
     stdio: 'inherit',
-    shell: true,
+    shell: npm.shell,
     env: {
         ...process.env,
         VAULT_PATH: abs,

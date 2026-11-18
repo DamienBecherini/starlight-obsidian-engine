@@ -31,7 +31,9 @@ try {
     console.log(`   VAULT_PATH=${fixtureVault}`);
     console.log(`   ASTRO_OUT_DIR=${distDir}`);
 
-    const build = spawnSync('npx', ['astro', 'build'], {
+    // The Astro CLI run by the current Node binary: no shell, no npx lookup.
+    const astroCli = path.join(engineRoot, 'node_modules', 'astro', 'bin', 'astro.mjs');
+    const build = spawnSync(process.execPath, [astroCli, 'build'], {
         cwd: engineRoot,
         env: {
             ...process.env,
@@ -40,7 +42,6 @@ try {
             ASTRO_OUT_DIR: distDir,
         },
         stdio: 'inherit',
-        shell: true,
     });
 
     if (build.status !== 0) {

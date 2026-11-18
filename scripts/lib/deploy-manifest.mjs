@@ -6,6 +6,20 @@ import { createReadStream } from 'node:fs';
 import { resolveVaultGitRoot } from '../../config/vault.mjs';
 
 export const MANIFEST_VERSION = 1;
+
+/**
+ * Whether a manifest path can name a file inside the deploy root: relative, forward slashes, no empty, `.` or
+ * `..` segment, no control character. The remote manifest sits on the host, where anyone with write access could
+ * edit it; its paths drive remote deletions, so one that could climb out of the deploy root is never deleted.
+ * @param {string} rel
+ * @returns {boolean}
+ */
+export function isSafeManifestPath(rel) {
+    if (!rel || rel.startsWith('/') || rel.includes('\\')) return false;
+    if ([...rel].some((c) => c.charCodeAt(0) < 0x20)) return false;
+    return rel.split('/').every((segment) => segment !== '' && segment !== '.' && segment !== '..');
+}
+
 export const MANIFEST_FILENAME = '.deploy-manifest.json';
 
 /** @typedef {{ sha256: string, size: number }} ManifestEntry */
@@ -266,7 +280,9 @@ export function diffDistAgainstManifest(local, manifest) {
     /** @type {string[]} */
     const toDelete = [];
     for (const rel of Object.keys(manifestFiles)) {
-        if (!local.has(rel)) toDelete.push(rel);
+        if (local.has(rel)) continue;
+        if (isSafeManifestPath(rel)) toDelete.push(rel);
+        else console.warn(`⚠️  Deploy manifest: unsafe path ignored, not deleted: ${JSON.stringify(rel)}`);
     }
     toDelete.sort();
 

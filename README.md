@@ -2,6 +2,8 @@
 
 # Starlight Obsidian Engine
 
+**English** · [Français](README.fr.md) · [Security](SECURITY.md)
+
 **Publish an Obsidian vault as a fast, multilingual static site — content and engine fully decoupled.**
 
 [![Astro](https://img.shields.io/badge/Astro-7.x-BC52EE?logo=astro&logoColor=white)](https://astro.build)
@@ -27,7 +29,7 @@ repositories**: edit your notes in Obsidian, let the engine publish them.
 **In production:** this engine publishes the guide
 [Zero to Hero: On-Premise AI](https://ia-on-prem.damien.becherini.fr)
 ([vault repository](https://github.com/DamienBecherini/ia-on-prem-vault)), about 280 notes in French and English.
-190 unit tests (`node --test`) plus a smoke build run on every push and pull request; a weekly workflow builds the
+204 unit tests (`node --test`) plus a smoke build run on every push and pull request; a weekly workflow builds the
 real public vaults to catch loader regressions; deploys are incremental over FTPS or SFTP.
 
 ## Why?
@@ -321,7 +323,7 @@ npm run test:build
 **Covered:** incremental deploy manifest diff, vault gitignore / `_private` filtering, vault docs
 loader exclusion, vault path override (`FORCE_VAULT_PATH`), deploy CLI flags, deploy config
 parsing (success paths), Apache `apr1` / htpasswd generation, `.htaccess` site rules and `apache` block
-parsing, robots.txt, JSON-LD and title emoji stripping, upload progress formatting. The smoke build also
+parsing, robots.txt, JSON-LD and title emoji stripping, upload progress formatting, running npm without a shell, SFTP host key check, unsafe manifest paths. The smoke build also
 checks `robots.txt`, the JSON-LD block, a single `twitter:card` and the emoji-free `<title>`.
 
 **Not covered (by design):** real FTPS/SFTP transfers, interactive `publish.mjs` git prompts,
@@ -377,6 +379,8 @@ DEPLOY_USER=your-user
 DEPLOY_PASSWORD=your-password
 # SFTP only — private key instead of password:
 # DEPLOY_PRIVATE_KEY_PATH=id_ed25519
+# SFTP only — expected SSH host key (ssh-keygen -lf, or printed at the first deploy); another key is refused:
+# DEPLOY_HOST_FINGERPRINT=SHA256:...
 
 # FTPS: many shared hosts present a cert for a different name (e.g. *.o2switch.net).
 # FileZilla silently accepts it; set this to do the same:
