@@ -671,7 +671,9 @@ $env:ANALYZE="true"; npm run build; Remove-Item Env:\ANALYZE
   `verified_by`, `verified_hitl`, and `prices_valid_as_of` frontmatter fields at the bottom of each page.
 - **Math (LaTeX)** — `remark-math` + `rehype-katex` (`config/markdown.mjs`) for Obsidian `$...$` /
   `$$...$$` syntax, rendered at build time (no client JS). Styles: `katex/dist/katex.min.css` +
-  `src/styles/katex-starlight.css`.
+  `src/styles/katex-starlight.css`. Single dollars follow Obsidian's rule (`config/remark/obsidian-math.mjs`): no
+  space after the opening `$`, none before the closing one, no digit after it. Two prices in a paragraph
+  ("$5 … $10", « 5 $ … 10 $ ») are therefore text, not a formula.
 - **Wiki links** — `remark-wiki-link` (`config/markdown.mjs`) for Obsidian's `[[...]]` syntax.
 - **Lexicon tooltips** — `config/rehype/lexicon-tooltips.mjs` (build time) + `src/components/LexiconTooltips.astro`
   (popover script, injected by `Head.astro`). See [Lexicon tooltips](#lexicon-tooltips).
