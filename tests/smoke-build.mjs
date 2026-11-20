@@ -70,6 +70,10 @@ try {
     assert.match(html, /class="reading-prerequisites[^"]*"[^>]*aria-label="Pour bien lire cette page"/);
     assert.match(html, /<a href="\/glossary\/term\/"[^>]*>Smoke Term<\/a>/);
     assert.doesNotMatch(html, /missing\/page/);
+    // « Give my opinion » (site.config.json → feedback): the card, and the window with where an opinion can go
+    assert.match(html, /<aside class="site-feedback[^"]*"[^>]*aria-label="Votre avis compte"/);
+    assert.match(html, /<dialog class="site-feedback-dialog[^"]*"[^>]*data-email="feedback@example\.com"[^>]*data-repository="example\/test-vault"/);
+    assert.match(html, /data-feedback-send="mail"/);
     const termHtml = fs.readFileSync(path.join(distDir, 'glossary', 'term', 'index.html'), 'utf8');
     assert.doesNotMatch(termHtml, /data-lexicon-def="/, 'no tooltip on the entry page itself');
     // Default-locale pages keep default-locale links.

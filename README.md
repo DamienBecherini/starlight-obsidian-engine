@@ -123,6 +123,27 @@ A short site-wide note under every page (how the content is written, licence…)
 
 The default-locale note is used when a locale has no translation. Omit `footer` to render nothing.
 
+### Optional readers' feedback (`site.config.json`)
+
+A card under every page, « Give my opinion », opens a window where a reader gives a note out of five, says what
+the opinion is about (the whole site or this page; the writing, outdated content, a mistake, the structure, the
+look, the subject) and writes a message. Everything is optional.
+
+```jsonc
+"feedback": {
+  "email": "feedback@example.com",        // a mail, from the reader's own mail program: private, no account
+  "repository": "owner/my-vault",         // an issue of this GitHub repository: public, a GitHub account
+  "rating": true,                         // ask for a note out of five (default: true)
+  "topics": true                          // ask what the opinion is about (default: true)
+}
+```
+
+Give `email`, `repository` or both; with neither, or without the block, nothing is rendered. The site sends
+nothing and stores nothing: the reader sees the text first, then sends it with their own mail program or their own
+GitHub account, or copies it. The mail and the issue hold what the reader chose, and the title and address of the
+page only when the opinion is about that page. Labels are built in for French and English (other languages get
+English). The address is written in the pages of the site: use one made for this.
+
 ### Optional Apache site rules (`site.config.json`)
 
 On an Apache host (o2switch, cPanel…), the engine can generate `.htaccess` site rules:
@@ -689,7 +710,8 @@ scripts/              vault linking, pre-dev/build checks, publish (FTPS/SFTP)
 src/pages/            robots.txt endpoint
 src/starlight-route-data.mjs  Starlight route middleware (emoji-free <title>)
 src/components/       Head, Footer, MarkdownContent, PageSidebar overrides; MermaidEnhancer, PageBacklinks,
-                      VerifiedBadge, LexiconTooltips, PrerequisitesBox
+                      VerifiedBadge, LexiconTooltips, PrerequisitesBox, SiteFooterNote, SiteFeedback
+src/lib/              browser-safe helpers: backlinks panel, readers' feedback (text, mail and issue links)
 src/styles/           Mermaid, KaTeX, backlinks, footnotes, external-links Starlight overrides
 src/generated/        link-graph.json (gitignored; rebuilt at predev/prebuild)
 src/content.config.ts content collection (compositeLoader: docsLoader + vault glob, junction-aware)
