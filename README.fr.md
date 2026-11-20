@@ -126,6 +126,27 @@ langue :
 }
 ```
 
+### Avis des lecteurs, facultatif (`site.config.json`)
+
+Une carte sous chaque page, « Donner mon avis », ouvre une fenêtre où le lecteur donne une note sur cinq, dit sur
+quoi porte son avis (le site entier ou cette page ; la rédaction, un contenu dépassé, une erreur, la structure,
+l'apparence, le sujet) et écrit un message. Tout est facultatif.
+
+```jsonc
+"feedback": {
+  "email": "avis@example.com",            // un e-mail, depuis la messagerie du lecteur : privé, sans compte
+  "repository": "owner/mon-coffre",       // un ticket de ce dépôt GitHub : public, avec un compte GitHub
+  "rating": true,                         // demander une note sur cinq (par défaut : true)
+  "topics": true                          // demander sur quoi porte l'avis (par défaut : true)
+}
+```
+
+Donnez `email`, `repository` ou les deux ; sans aucun des deux, ou sans le bloc, rien n'est affiché. Le site
+n'envoie rien et ne garde rien : le lecteur voit le texte d'abord, puis l'envoie avec sa propre messagerie ou son
+propre compte GitHub, ou le copie. L'e-mail et le ticket contiennent ce que le lecteur a choisi, et le titre et
+l'adresse de la page seulement quand l'avis porte sur cette page. Les libellés existent en français et en anglais
+(les autres langues reçoivent l'anglais). L'adresse est écrite dans les pages du site : prenez-en une faite pour ça.
+
 La note de la langue par défaut s'affiche quand une langue n'a pas de traduction. Sans bloc `footer`, rien n'est
 affiché.
 
@@ -707,7 +728,9 @@ scripts/              lien vers le vault, vérifications avant dev/build, public
 src/pages/            point d'entrée robots.txt
 src/starlight-route-data.mjs  middleware de route Starlight (<title> sans emoji)
 src/components/       surcharges Head, Footer, MarkdownContent, PageSidebar ; MermaidEnhancer, PageBacklinks,
-                      VerifiedBadge, LexiconTooltips, PrerequisitesBox
+                      VerifiedBadge, LexiconTooltips, PrerequisitesBox, SiteFooterNote, SiteFeedback
+src/lib/              aides utilisables dans le navigateur : panneau des rétroliens, avis des lecteurs (texte,
+                      liens d'e-mail et de ticket)
 src/styles/           surcharges Starlight pour Mermaid, KaTeX, rétroliens, notes de bas de page, liens externes
 src/generated/        link-graph.json (ignoré par git ; reconstruit pendant predev/prebuild)
 src/content.config.ts collection de contenu (compositeLoader : docsLoader + glob du vault, compatible jonction)

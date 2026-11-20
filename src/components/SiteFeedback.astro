@@ -1,0 +1,460 @@
+---
+/**
+ * SiteFeedback — « Give my opinion », from site.config.json → feedback (config/feedback.mjs). Renders nothing
+ * when the block is absent.
+ *
+ * A card under every page opens a window: a note out of five, what the opinion is about (the site or this page,
+ * the writing, outdated content, the look…), a message; everything is optional. The site sends nothing: the reader
+ * sees the text, then sends it with their own mail program (no account) or as an issue of the site's repository
+ * (public, a GitHub account), or copies it. The text and the links are built by src/lib/feedback.mjs.
+ */
+import { loadSiteConfig } from '../../config/site.mjs';
+import { FEEDBACK_TOPICS, feedbackLabels } from '../lib/feedback.mjs';
+
+const site = loadSiteConfig();
+const feedback = site.feedback ?? null;
+const route = Astro.locals.starlightRoute;
+const lang = route?.lang;
+const L = feedbackLabels(lang);
+const pageTitle = (route?.entry?.data as { title?: string } | undefined)?.title ?? '';
+const topics = FEEDBACK_TOPICS as (keyof typeof L.topics)[];
+---
+
+{feedback && (
+  <>
+  <aside class="site-feedback print:hidden" aria-label={L.cardTitle} data-pagefind-ignore>
+    <svg class="site-feedback__icon" viewBox="0 0 24 24" width="28" height="28" aria-hidden="true" focusable="false">
+      <path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+      <path d="M12 13.2 9.4 10.7a1.7 1.7 0 0 1 2.4-2.4l.2.2.2-.2a1.7 1.7 0 0 1 2.4 2.4z" />
+    </svg>
+    <div class="site-feedback__text">
+      <p class="site-feedback__title">{L.cardTitle}</p>
+      <p>{L.cardText}</p>
+    </div>
+    <button type="button" class="site-feedback__button site-feedback__button--primary" data-feedback-open>{L.open}</button>
+  </aside>
+
+  <dialog
+    class="site-feedback-dialog"
+    aria-labelledby="site-feedback-title"
+    data-pagefind-ignore
+    data-email={feedback.email}
+    data-repository={feedback.repository}
+    data-site={site.title}
+    data-page={pageTitle}
+    data-lang={lang}
+  >
+    <div class="site-feedback__head">
+      <h2 id="site-feedback-title">{L.open}</h2>
+      <button type="button" class="site-feedback__close" data-feedback-close aria-label={L.close}>×</button>
+    </div>
+    <p class="site-feedback__muted">{L.intro}</p>
+
+    {feedback.rating && (
+      <fieldset class="site-feedback__stars">
+        <legend>{L.rating}</legend>
+        {[1, 2, 3, 4, 5].map((n) => (
+          <label title={L.ratingOf(n)}>
+            <input type="radio" name="site-feedback-rating" value={n} />
+            <span class="site-feedback__star" aria-hidden="true">★</span>
+            <span class="sr-only">{L.ratingOf(n)}</span>
+          </label>
+        ))}
+        <span class="site-feedback__muted" data-feedback-rating-said>{L.noRating}</span>
+        <button type="button" class="site-feedback__link" data-feedback-clear hidden>{L.clear}</button>
+      </fieldset>
+    )}
+
+    <fieldset class="site-feedback__choices">
+      <legend>{L.scope}</legend>
+      <label><input type="radio" name="site-feedback-scope" value="site" checked /><span>{L.scopeSite}</span></label>
+      <label><input type="radio" name="site-feedback-scope" value="page" /><span>{L.scopePage}</span></label>
+    </fieldset>
+
+    {feedback.topics && (
+      <fieldset class="site-feedback__choices">
+        <legend>{L.topicsLegend}</legend>
+        {topics.map((id) => (
+          <label><input type="checkbox" name="site-feedback-topic" value={id} /><span>{L.topics[id]}</span></label>
+        ))}
+      </fieldset>
+    )}
+
+    <label class="site-feedback__label" for="site-feedback-message">{L.message}</label>
+    <textarea id="site-feedback-message" rows="5" placeholder={L.placeholder}></textarea>
+
+    <details>
+      <summary>{L.preview}</summary>
+      <pre data-feedback-preview></pre>
+    </details>
+
+    <div class="site-feedback__send">
+      {feedback.email && (
+        <div>
+          <a class="site-feedback__button site-feedback__button--primary" data-feedback-send="mail" aria-disabled="true">{L.email}</a>
+          <p class="site-feedback__muted">{L.emailHelp(feedback.email)}</p>
+        </div>
+      )}
+      {feedback.repository && (
+        <div>
+          <a
+            class:list={['site-feedback__button', { 'site-feedback__button--primary': !feedback.email }]}
+            data-feedback-send="issue"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-disabled="true"
+          >{L.github} ↗</a>
+          <p class="site-feedback__muted">{L.githubHelp}</p>
+        </div>
+      )}
+      <div>
+        <button type="button" class="site-feedback__button" data-feedback-copy disabled>{L.copy}</button>
+        <p class="site-feedback__muted">{L.copyHelp}</p>
+      </div>
+    </div>
+    <p class="site-feedback__note" role="status" data-feedback-needs>{L.needs}</p>
+    <p class="site-feedback__note" role="status" data-feedback-cut hidden>{L.cut}</p>
+  </dialog>
+  </>
+)}
+
+<script>
+    import {
+        feedbackIssueUrl,
+        feedbackLabels,
+        feedbackMailUrl,
+        feedbackReady,
+        feedbackSubject,
+        feedbackText,
+    } from '../lib/feedback.mjs';
+
+    const dialog = document.querySelector<HTMLDialogElement>('.site-feedback-dialog');
+    if (dialog) {
+        const { email = '', repository = '', site = '', page = '', lang = '' } = dialog.dataset;
+        const labels = feedbackLabels(lang || document.documentElement.lang);
+        const one = <T extends Element>(selector: string) => dialog.querySelector<T>(selector);
+        const all = <T extends Element>(selector: string) => [...dialog.querySelectorAll<T>(selector)];
+        const message = one<HTMLTextAreaElement>('#site-feedback-message');
+        const preview = one<HTMLElement>('[data-feedback-preview]');
+        const copy = one<HTMLButtonElement>('[data-feedback-copy]');
+        // The address of the page as its readers know it: no query, no fragment
+        const context = { siteTitle: site, pageTitle: page || document.title, pageUrl: location.origin + location.pathname };
+
+        const answer = () => ({
+            rating: Number(one<HTMLInputElement>('[name="site-feedback-rating"]:checked')?.value ?? 0),
+            scope: one<HTMLInputElement>('[name="site-feedback-scope"]:checked')?.value === 'page' ? ('page' as const) : ('site' as const),
+            topics: all<HTMLInputElement>('[name="site-feedback-topic"]:checked').map((box) => box.value),
+            message: message?.value ?? '',
+        });
+
+        // What is sent follows every answer: the preview, the links, what is missing
+        const update = () => {
+            const now = answer();
+            const ready = feedbackReady(now);
+            const text = feedbackText(now, context, labels);
+            if (preview) preview.textContent = text;
+            all<HTMLElement>('.site-feedback__stars label').forEach((label, index) => {
+                label.classList.toggle('is-on', index < now.rating);
+            });
+            const said = one<HTMLElement>('[data-feedback-rating-said]');
+            if (said) said.textContent = now.rating > 0 ? labels.ratingOf(now.rating) : labels.noRating;
+            const clear = one<HTMLElement>('[data-feedback-clear]');
+            if (clear) clear.hidden = now.rating === 0;
+            let cut = false;
+            for (const link of all<HTMLAnchorElement>('[data-feedback-send]')) {
+                const made =
+                    link.dataset.feedbackSend === 'mail'
+                        ? feedbackMailUrl(email, now, context, labels)
+                        : feedbackIssueUrl(repository, now, context, labels);
+                if (ready) {
+                    link.href = made.url;
+                    link.removeAttribute('aria-disabled');
+                    cut = cut || made.cut;
+                } else {
+                    link.removeAttribute('href');
+                    link.setAttribute('aria-disabled', 'true');
+                }
+            }
+            if (copy) copy.disabled = !ready;
+            const needs = one<HTMLElement>('[data-feedback-needs]');
+            if (needs) needs.hidden = ready;
+            const tooLong = one<HTMLElement>('[data-feedback-cut]');
+            if (tooLong) tooLong.hidden = !(ready && cut);
+        };
+
+        dialog.addEventListener('input', update);
+        dialog.addEventListener('change', update);
+        one<HTMLElement>('[data-feedback-clear]')?.addEventListener('click', () => {
+            all<HTMLInputElement>('[name="site-feedback-rating"]').forEach((radio) => (radio.checked = false));
+            update();
+            one<HTMLInputElement>('[name="site-feedback-rating"]')?.focus();
+        });
+        one<HTMLElement>('[data-feedback-close]')?.addEventListener('click', () => dialog.close());
+        dialog.addEventListener('click', (event) => {
+            if (event.target === dialog) dialog.close(); // a click outside: what was written stays
+        });
+        copy?.addEventListener('click', async () => {
+            const now = answer();
+            try {
+                await navigator.clipboard.writeText(`${feedbackSubject(now, context, labels)}\n\n${feedbackText(now, context, labels)}`);
+                copy.textContent = labels.copied;
+            } catch {
+                // No clipboard (an insecure page, a refusal): the text is shown and selected
+                const details = preview?.closest('details');
+                if (details) details.open = true;
+                if (preview) getSelection()?.selectAllChildren(preview);
+            }
+        });
+        document.querySelectorAll<HTMLElement>('[data-feedback-open]').forEach((button) =>
+            button.addEventListener('click', () => {
+                update();
+                if (copy) copy.textContent = labels.copy;
+                dialog.showModal();
+            }),
+        );
+    }
+</script>
+
+<style>
+    @layer starlight.core {
+        .site-feedback {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 0.75rem 1rem;
+            margin-top: 2rem;
+            padding: 1rem 1.25rem;
+            border: 1px solid var(--sl-color-gray-5);
+            border-radius: 0.5rem;
+            background: var(--sl-color-bg-nav);
+        }
+        .site-feedback__icon {
+            flex: none;
+            fill: none;
+            stroke: var(--sl-color-text-accent);
+            stroke-width: 1.6;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+        .site-feedback__text {
+            flex: 1 1 16rem;
+        }
+        .site-feedback__text p {
+            margin: 0;
+            font-size: var(--sl-text-sm);
+            color: var(--sl-color-gray-2);
+        }
+        .site-feedback__text .site-feedback__title {
+            font-size: var(--sl-text-base);
+            font-weight: 600;
+            color: var(--sl-color-white);
+        }
+
+        .site-feedback__button {
+            display: inline-block;
+            font: inherit;
+            font-size: var(--sl-text-sm);
+            font-weight: 600;
+            line-height: 1.4;
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--sl-color-gray-4);
+            border-radius: 0.5rem;
+            background: transparent;
+            color: var(--sl-color-white);
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .site-feedback__button--primary {
+            border-color: var(--sl-color-text-accent);
+            background: var(--sl-color-text-accent);
+            color: var(--sl-color-black);
+        }
+        .site-feedback__button:disabled,
+        .site-feedback__button[aria-disabled='true'] {
+            opacity: 0.5;
+            cursor: default;
+            pointer-events: none;
+        }
+        .site-feedback :focus-visible,
+        .site-feedback-dialog :focus-visible {
+            outline: 2px solid var(--sl-color-text-accent);
+            outline-offset: 2px;
+        }
+
+        .site-feedback-dialog {
+            width: min(40rem, 94vw);
+            max-height: 92vh;
+            padding: 1.25rem 1.5rem;
+            border: 1px solid var(--sl-color-gray-5);
+            border-radius: 0.75rem;
+            background: var(--sl-color-bg);
+            color: var(--sl-color-text);
+            font-size: var(--sl-text-base);
+        }
+        .site-feedback-dialog::backdrop {
+            background: rgb(0 0 0 / 0.5);
+        }
+        .site-feedback__head {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        .site-feedback__head h2 {
+            flex: 1;
+            margin: 0;
+            font-size: var(--sl-text-xl);
+            color: var(--sl-color-white);
+        }
+        .site-feedback__close {
+            width: 2.25rem;
+            height: 2.25rem;
+            border: 0;
+            border-radius: 0.5rem;
+            background: none;
+            color: var(--sl-color-white);
+            font-size: 1.75rem;
+            line-height: 1;
+            cursor: pointer;
+        }
+        .site-feedback__muted {
+            margin: 0.5rem 0 0;
+            font-size: var(--sl-text-sm);
+            color: var(--sl-color-gray-2);
+        }
+        .site-feedback-dialog fieldset {
+            min-width: 0; /* its choices wrap on a narrow window */
+            margin: 1rem 0 0;
+            padding: 0;
+            border: 0;
+        }
+        .site-feedback-dialog legend,
+        .site-feedback__label {
+            display: block;
+            margin: 1rem 0 0.4rem;
+            padding: 0;
+            font-weight: 600;
+            color: var(--sl-color-white);
+        }
+        .site-feedback-dialog legend {
+            margin-top: 0;
+        }
+
+        .site-feedback__stars {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 0.125rem 0.25rem;
+        }
+        .site-feedback__stars legend {
+            flex-basis: 100%;
+        }
+        .site-feedback__stars label {
+            border-radius: 0.4rem;
+            line-height: 1;
+            cursor: pointer;
+        }
+        .site-feedback__stars input,
+        .site-feedback__choices input {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            opacity: 0;
+        }
+        .site-feedback__star {
+            display: inline-grid;
+            place-items: center;
+            width: 2.5rem;
+            height: 2.5rem;
+            font-size: 1.9rem;
+            /* Not chosen: an outline, chosen: a full star. The shape says it, not the colour alone; both stand at
+               3:1 at least against the window, light or dark. */
+            color: transparent;
+            -webkit-text-stroke: 1.5px var(--sl-color-gray-3);
+        }
+        .site-feedback__stars label.is-on .site-feedback__star,
+        .site-feedback__stars label:hover .site-feedback__star {
+            color: var(--sl-color-orange-high);
+            -webkit-text-stroke: 1.5px var(--sl-color-orange-high);
+        }
+        .site-feedback__stars label:has(input:focus-visible),
+        .site-feedback__choices label:has(input:focus-visible) {
+            outline: 2px solid var(--sl-color-text-accent);
+            outline-offset: 2px;
+        }
+        .site-feedback__stars .site-feedback__muted {
+            margin: 0 0.5rem;
+        }
+        .site-feedback__link {
+            padding: 0.25rem 0;
+            border: 0;
+            background: none;
+            color: var(--sl-color-text-accent);
+            font: inherit;
+            font-size: var(--sl-text-sm);
+            text-decoration: underline;
+            cursor: pointer;
+        }
+
+        .site-feedback__choices {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.4rem;
+        }
+        .site-feedback__choices legend {
+            flex-basis: 100%;
+        }
+        .site-feedback__choices label span {
+            display: inline-block;
+            padding: 0.4rem 0.8rem;
+            border: 1px solid var(--sl-color-gray-4);
+            border-radius: 999px;
+            font-size: var(--sl-text-sm);
+            cursor: pointer;
+        }
+        .site-feedback__choices label:has(input:checked) span {
+            border-color: var(--sl-color-text-accent);
+            background: var(--sl-color-text-accent);
+            color: var(--sl-color-black);
+            font-weight: 600;
+        }
+
+        .site-feedback-dialog textarea {
+            width: 100%;
+            min-height: 7rem;
+            padding: 0.6rem 0.75rem;
+            border: 1px solid var(--sl-color-gray-4);
+            border-radius: 0.5rem;
+            background: var(--sl-color-bg-nav);
+            color: var(--sl-color-text);
+            font: inherit;
+            resize: vertical;
+        }
+        .site-feedback-dialog details {
+            margin-top: 0.75rem;
+        }
+        .site-feedback-dialog summary {
+            cursor: pointer;
+            font-size: var(--sl-text-sm);
+        }
+        .site-feedback-dialog pre {
+            margin: 0.5rem 0 0;
+            padding: 0.75rem;
+            border: 1px solid var(--sl-color-gray-5);
+            border-radius: 0.5rem;
+            font-size: var(--sl-text-sm);
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+        }
+        .site-feedback__send {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+            gap: 0.75rem 1rem;
+            margin-top: 1rem;
+        }
+        .site-feedback__note {
+            margin: 0.75rem 0 0;
+            font-size: var(--sl-text-sm);
+            color: var(--sl-color-orange-high);
+        }
+    }
+</style>
