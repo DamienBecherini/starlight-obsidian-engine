@@ -1,0 +1,76 @@
+---
+/**
+ * SocialIcons — Starlight's social links, preceded by « Give my opinion » when the site asks its readers
+ * (site.config.json → feedback).
+ *
+ * Starlight renders this component in the header (wide screens) and at the bottom of the mobile menu, so the button
+ * is in sight from the top of every page, where the card of SiteFeedback.astro is at its very end. It opens the same
+ * window: the script of SiteFeedback.astro handles every [data-feedback-open] of the page. In the header below 72rem
+ * the label gives way to the icon alone, so that the search keeps its room; the mobile menu always shows it.
+ */
+import Default from '@astrojs/starlight/components/SocialIcons.astro';
+import { loadSiteConfig } from '../../config/site.mjs';
+import { feedbackLabels } from '../lib/feedback.mjs';
+
+const feedback = loadSiteConfig().feedback ?? null;
+const L = feedbackLabels(Astro.locals.starlightRoute?.lang);
+---
+
+{feedback && (
+  <button type="button" class="header-feedback" data-feedback-open title={L.open} aria-label={L.open}>
+    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">
+      <path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+      <path d="M12 13.2 9.4 10.7a1.7 1.7 0 0 1 2.4-2.4l.2.2.2-.2a1.7 1.7 0 0 1 2.4 2.4z" />
+    </svg>
+    <span class="header-feedback__label" aria-hidden="true">{L.open}</span>
+  </button>
+)}
+<Default />
+
+<style>
+    @layer starlight.core {
+        .header-feedback {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.3rem 0.55rem;
+            border: 1px solid var(--sl-color-accent);
+            border-radius: 0.4rem;
+            background: transparent;
+            color: var(--sl-color-text-accent);
+            font: inherit;
+            font-size: var(--sl-text-sm);
+            line-height: 1.2;
+            white-space: nowrap;
+            cursor: pointer;
+        }
+        .header-feedback:hover {
+            background: var(--sl-color-accent-low);
+            color: var(--sl-color-white);
+        }
+        .header-feedback:focus-visible {
+            outline: 2px solid var(--sl-color-text-accent);
+            outline-offset: 2px;
+        }
+        .header-feedback svg {
+            flex: none;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 1.7;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+        .header-feedback__label {
+            display: none;
+        }
+        /* the mobile menu has the room for it */
+        @media (min-width: 72rem) {
+            .header-feedback__label {
+                display: inline;
+            }
+        }
+        :global(.mobile-preferences) .header-feedback__label {
+            display: inline;
+        }
+    }
+</style>

@@ -29,7 +29,7 @@ documentation statiques, rapides et multilingues. Le moteur (ce dépôt) et le c
 **En production :** ce moteur publie le guide
 [Zero to Hero : IA On-Premise](https://ia-on-prem.damien.becherini.fr)
 ([dépôt du vault](https://github.com/DamienBecherini/ia-on-prem-vault)), environ 280 notes en français et en anglais.
-213 tests unitaires (`node --test`) et un build de vérification tournent à chaque push et à chaque pull request ; un
+236 tests unitaires (`node --test`) et un build de vérification tournent à chaque push et à chaque pull request ; un
 workflow hebdomadaire construit les vrais vaults publics pour repérer les régressions du chargeur ; les déploiements
 sont incrémentaux, en FTPS ou en SFTP.
 
@@ -128,8 +128,8 @@ langue :
 
 ### Avis des lecteurs, facultatif (`site.config.json`)
 
-Une carte sous chaque page, « Donner mon avis », ouvre une fenêtre où le lecteur donne une note sur cinq, dit sur
-quoi porte son avis (le site entier ou cette page ; la rédaction, un contenu dépassé, une erreur, la structure,
+Un bouton « Donner mon avis » dans l'en-tête (en bas du menu sur un téléphone) et une carte sous chaque page ouvrent
+une fenêtre où le lecteur donne une note sur cinq, dit sur quoi porte son avis (le site entier ou cette page ; la rédaction, un contenu dépassé, une erreur, la structure,
 l'apparence, le sujet) et écrit un message. Tout est facultatif.
 
 ```jsonc
@@ -733,7 +733,7 @@ config/               configuration du moteur (résolution du vault, lecture de 
 scripts/              lien vers le vault, vérifications avant dev/build, publication (FTPS/SFTP)
 src/pages/            point d'entrée robots.txt
 src/starlight-route-data.mjs  middleware de route Starlight (<title> sans emoji)
-src/components/       surcharges Head, Footer, MarkdownContent, PageSidebar ; MermaidEnhancer, PageBacklinks,
+src/components/       surcharges Head, Footer, MarkdownContent, PageSidebar, SocialIcons ; MermaidEnhancer, PageBacklinks,
                       VerifiedBadge, LexiconTooltips, PrerequisitesBox, SiteFooterNote, SiteFeedback
 src/lib/              aides utilisables dans le navigateur : panneau des rétroliens, avis des lecteurs (texte,
                       liens d'e-mail et de ticket)
