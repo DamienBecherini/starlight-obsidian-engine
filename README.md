@@ -314,10 +314,16 @@ npm run link-graph:build
 
 ## Scripts
 
+The development server stops by itself after an hour without a request or a change of a file it watches, so a
+preview forgotten after a work session does not keep its port and its watcher on the vault. Writing in the vault
+with the preview beside counts as use; a page left open that asks for nothing does not. `DEV_IDLE_EXIT_MINUTES` in
+the engine `.env` sets the delay in minutes; `0` keeps the server running.
+
 | Command | Purpose |
 |---------|---------|
 | `npm run dev` | Development server (uses `VAULT_PATH` fallback) |
 | `npm run dev:<name>` | Dev server for a registered vault (e.g. `dev:ia-on-prem`, `dev:craft`) |
+| `npx astro dev stop` | Stops a development server left running |
 | `npm run build` | Static build (`dist/`) |
 | `npm run preview` | Preview the build |
 | `npm run link:vault` | (Re)create the junction `src/content/docs` → `VAULT_PATH` (optional, IDE nav only) |

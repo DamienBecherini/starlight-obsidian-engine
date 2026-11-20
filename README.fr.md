@@ -325,6 +325,12 @@ npm run link-graph:build
 
 ## Scripts
 
+Le serveur de développement s'arrête de lui-même après une heure sans requête ni modification d'un fichier qu'il
+surveille : un aperçu oublié après une session de travail ne garde pas son port ni sa surveillance du vault.
+Écrire dans le vault avec l'aperçu à côté compte comme une utilisation ; une page laissée ouverte qui ne demande
+rien, non. `DEV_IDLE_EXIT_MINUTES`, dans le `.env` du moteur, règle le délai en minutes ; `0` laisse le serveur
+tourner.
+
 | Commande | Rôle |
 |----------|------|
 | `npm run dev` | Serveur de développement (utilise le repli `VAULT_PATH`) |

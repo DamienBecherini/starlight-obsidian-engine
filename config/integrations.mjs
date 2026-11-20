@@ -6,6 +6,7 @@ import { starlightIntegration } from './starlight/index.mjs';
 import { vaultPublicIntegration } from './vault-public.mjs';
 import { loadSiteConfig } from './site.mjs';
 import { seoSitemapIntegration, sitemapOptions } from './seo-indexing.mjs';
+import { devIdleExitIntegration } from './dev-idle-exit.mjs';
 
 /**
  * React renderer. The engine ships no React component (vault pages are Markdown/MDX rendered by
@@ -30,4 +31,5 @@ export const integrations = [
     reactIntegration,
     vaultPublicIntegration(),
     ...sitemapIntegrations,
+    devIdleExitIntegration(), // `astro dev` only: stops after an hour without a request or a change
 ];
