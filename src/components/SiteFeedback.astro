@@ -284,6 +284,7 @@ const topics = FEEDBACK_TOPICS as (keyof typeof L.topics)[];
         .site-feedback-dialog {
             width: min(40rem, 94vw);
             max-height: 92vh;
+            margin: auto; /* centred: Starlight's reset sets the margin of every element to 0, a dialog's included */
             padding: 1.25rem 1.5rem;
             border: 1px solid var(--sl-color-gray-5);
             border-radius: 0.75rem;

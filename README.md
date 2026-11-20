@@ -29,7 +29,7 @@ repositories**: edit your notes in Obsidian, let the engine publish them.
 **In production:** this engine publishes the guide
 [Zero to Hero: On-Premise AI](https://ia-on-prem.damien.becherini.fr)
 ([vault repository](https://github.com/DamienBecherini/ia-on-prem-vault)), about 280 notes in French and English.
-213 unit tests (`node --test`) plus a smoke build run on every push and pull request; a weekly workflow builds the
+236 unit tests (`node --test`) plus a smoke build run on every push and pull request; a weekly workflow builds the
 real public vaults to catch loader regressions; deploys are incremental over FTPS or SFTP.
 
 ## Why?
@@ -125,8 +125,8 @@ The default-locale note is used when a locale has no translation. Omit `footer` 
 
 ### Optional readers' feedback (`site.config.json`)
 
-A card under every page, « Give my opinion », opens a window where a reader gives a note out of five, says what
-the opinion is about (the whole site or this page; the writing, outdated content, a mistake, the structure, the
+A button « Give my opinion » in the header (at the bottom of the menu on a phone) and a card under every page open
+a window where a reader gives a note out of five, says what the opinion is about (the whole site or this page; the writing, outdated content, a mistake, the structure, the
 look, the subject) and writes a message. Everything is optional.
 
 ```jsonc
@@ -715,7 +715,7 @@ config/               engine config (vault resolution, site config loader, integ
 scripts/              vault linking, pre-dev/build checks, publish (FTPS/SFTP)
 src/pages/            robots.txt endpoint
 src/starlight-route-data.mjs  Starlight route middleware (emoji-free <title>)
-src/components/       Head, Footer, MarkdownContent, PageSidebar overrides; MermaidEnhancer, PageBacklinks,
+src/components/       Head, Footer, MarkdownContent, PageSidebar, SocialIcons overrides; MermaidEnhancer, PageBacklinks,
                       VerifiedBadge, LexiconTooltips, PrerequisitesBox, SiteFooterNote, SiteFeedback
 src/lib/              browser-safe helpers: backlinks panel, readers' feedback (text, mail and issue links)
 src/styles/           Mermaid, KaTeX, backlinks, footnotes, external-links Starlight overrides
