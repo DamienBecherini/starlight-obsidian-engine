@@ -689,7 +689,9 @@ $env:ANALYZE="true"; npm run build; Remove-Item Env:\ANALYZE
   `last_modified`, `last_verified`, `verified_by`, `verified_hitl` et `prices_valid_as_of`.
 - **Mathématiques (LaTeX)** : `remark-math` + `rehype-katex` (`config/markdown.mjs`) pour la syntaxe Obsidian `$...$` /
   `$$...$$`, rendue au build (aucun JS côté navigateur). Styles : `katex/dist/katex.min.css` +
-  `src/styles/katex-starlight.css`.
+  `src/styles/katex-starlight.css`. Les dollars simples suivent la règle d'Obsidian
+  (`config/remark/obsidian-math.mjs`) : pas d'espace après le `$` ouvrant, pas d'espace avant le `$` fermant, pas de
+  chiffre après lui. Deux prix dans un paragraphe (« 5 $ … 10 $ », « $5 … $10 ») restent donc du texte.
 - **Wiki-links** : `remark-wiki-link` (`config/markdown.mjs`) pour la syntaxe `[[...]]` d'Obsidian.
 - **Infobulles du lexique** : `config/rehype/lexicon-tooltips.mjs` (au build) + `src/components/LexiconTooltips.astro`
   (script de la bulle, injecté par `Head.astro`). Voir [Infobulles du lexique](#infobulles-du-lexique).

@@ -5,6 +5,7 @@ import remarkMath from 'remark-math';
 import rehypeExternalLinks from 'rehype-external-links';
 import rehypeKatex from 'rehype-katex';
 import { remarkObsidianCallouts } from './remark/obsidian-callouts.mjs';
+import { remarkObsidianMath } from './remark/obsidian-math.mjs';
 import { rehypeLexiconTooltips } from './rehype/lexicon-tooltips.mjs';
 import { rehypeLocalizedLinks } from './rehype/localized-links.mjs';
 import { isLexiconEnabled, loadLexiconConfig } from './lexicon.mjs';
@@ -51,6 +52,8 @@ export const markdown = {
     processor: unified({
         remarkPlugins: [
             remarkMath,
+            // Right after remark-math: single dollars read as Obsidian reads them (prices are not formulas).
+            remarkObsidianMath,
             remarkObsidianCallouts,
             [
                 remarkWikiLink,
