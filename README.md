@@ -10,7 +10,7 @@
 [![Starlight](https://img.shields.io/badge/Starlight-0.42-FFC107?logo=astro&logoColor=black)](https://starlight.astro.build)
 [![Mermaid](https://img.shields.io/badge/Mermaid-pan%2Fzoom-FF3670?logo=mermaid&logoColor=white)](https://mermaid.js.org)
 [![i18n](https://img.shields.io/badge/i18n-ready-0A7EA4)](https://starlight.astro.build/guides/i18n/)
-[![License: 0BSD](https://img.shields.io/badge/License-0BSD-brightgreen.svg)](./LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-brightgreen.svg)](./LICENSE)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-success.svg)](#contributing)
 [![CI](https://github.com/DamienBecherini/starlight-obsidian-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/DamienBecherini/starlight-obsidian-engine/actions/workflows/ci.yml)
 
@@ -701,5 +701,5 @@ Issues and PRs welcome. The engine is intentionally content-agnostic — keep yo
 
 ## License
 
-[BSD Zero Clause License (0BSD)](./LICENSE) — public-domain-equivalent, no attribution required. Use it for
-anything, including closed-source and commercial work.
+[MIT License](./LICENSE): free to use, modify and redistribute, including in closed-source and commercial
+projects, provided the copyright notice and the licence text are kept.
