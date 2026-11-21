@@ -129,6 +129,8 @@ A button « Give my opinion » in the header (at the bottom of the menu on a pho
 a window where a reader gives a note out of five, says what the opinion is about (the whole site or this page; the writing, outdated content, a mistake, the structure, the
 look, the subject) and writes a message. Everything is optional.
 
+![The window « Give my opinion » on the IA on-prem guide: a note out of five, what the opinion is about, a message, then the three ways to send it](docs/images/feedback-window.png)
+
 ```jsonc
 "feedback": {
   "email": "feedback@example.com",        // a mail, from the reader's own mail program: private, no account

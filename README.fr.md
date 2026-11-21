@@ -132,6 +132,8 @@ Un bouton « Donner mon avis » dans l'en-tête (en bas du menu sur un télépho
 une fenêtre où le lecteur donne une note sur cinq, dit sur quoi porte son avis (le site entier ou cette page ; la rédaction, un contenu dépassé, une erreur, la structure,
 l'apparence, le sujet) et écrit un message. Tout est facultatif.
 
+![La fenêtre « Donner mon avis » sur le guide IA on-prem : une note sur cinq, ce sur quoi porte l'avis, un message, puis les trois façons de l'envoyer](docs/images/feedback-window.png)
+
 ```jsonc
 "feedback": {
   "email": "avis@example.com",            // un e-mail, depuis la messagerie du lecteur : privé, sans compte
